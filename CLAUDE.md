@@ -30,6 +30,19 @@ more than it saves (tiny edits, a single decisive command).
 - Rust: `cd azula-cli && cargo build`.
 - Worker: `cd site && npm install && npm run typecheck`.
 
+## azula device registry (MCP bridge state)
+
+`azula serve-mcp` + `azula pair <url>` persist paired devices as JSON the agent
+can read:
+
+- project-local `<worktree-root>/.azula/devices.json` — git-worktree-aware (first
+  ancestor with a `.git`); `azula pair` writes here inside a repo,
+- global `~/.azula/devices.json` — fallback / `--global`; reads merge global then
+  project (project wins by name),
+- runtime `$TMPDIR/azula/bridge.json` — a running bridge's `{bind, pid, devices}`.
+
+To see which devices are paired/connected, read those files.
+
 ## Conventions
 
 - Custom fonts fall back to system families until `.ttf` are added to
