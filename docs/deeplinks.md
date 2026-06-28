@@ -37,13 +37,13 @@ tapping `https://azula.app/s/<token>` opens the app and dials the session.
    Play Console → Test and release → App integrity → *App signing key certificate*
    (the Google-managed key, not the upload key). You can list both.
 2. In `site/src/wellknown.ts` set `ANDROID_SHA256` to that fingerprint
-   (uppercase, colon-separated) and confirm `ANDROID_PACKAGE = "dev.azula"`
+   (uppercase, colon-separated) and confirm `ANDROID_PACKAGE = "app.azula"`
    matches the `applicationId`. Redeploy the Worker.
 3. Verify: `curl -s https://azula.app/.well-known/assetlinks.json` returns the JSON
    as `application/json`. Optionally use Google's Statement List Tester.
 4. `autoVerify="true"` is already set; the system verifies on install. Manual test:
    `adb shell am start -a android.intent.action.VIEW -d "https://azula.app/s/TESTTOKEN"`
-   and `adb shell pm get-app-links dev.azula`.
+   and `adb shell pm get-app-links app.azula`.
 
 ## Deploy the site
 

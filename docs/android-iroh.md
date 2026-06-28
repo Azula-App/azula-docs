@@ -27,7 +27,7 @@ libraries under `kotlin/lib/src/main/resources/` (one per ABI:
 ## 2a. Recommended — publish to mavenLocal
 
 Publish the locally built Android binding (Kotlin + bundled `.so`) under a
-coordinate, e.g. `dev.azula:iroh-android:1.0.0`, into `~/.m2`. Then in
+coordinate, e.g. `app.azula:iroh-android:1.0.0`, into `~/.m2`. Then in
 `shared/module.yaml` add the repository and an Android-only dependency:
 
 ```yaml
@@ -35,7 +35,7 @@ repositories:
   - mavenLocal
 
 dependencies@android:
-  - dev.azula:iroh-android:1.0.0
+  - app.azula:iroh-android:1.0.0
 ```
 
 and drop the `computer.iroh:iroh:1.0.0` entry from `dependencies@jvmAndAndroid`
