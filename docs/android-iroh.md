@@ -1,5 +1,19 @@
 # Android: building the iroh native library
 
+> **✅ RESOLVED (2026-06) — superseded by the `iroh-kmp` SDK.**
+> The async-on-Android blocker described at the bottom of this doc is fixed. The
+> app no longer uses `computer.iroh:iroh`; it depends on **`app.azula.iroh:iroh-kmp`**,
+> a Gobley-generated KMP binding built from the sibling **`iroh-kmp/`** repo and
+> published to mavenLocal. On a real device `Endpoint.bind` returns, `nodeId` is
+> set, and `myTicket()` (which needs async relay `online()`) completes with
+> `demo=false`. The key fixes were (1) initializing `ndk_context` with the app
+> context at startup so iroh's DNS resolver works, and (2) bundling
+> `libjnidispatch.so` (JNA's Android dispatch lib) into the SDK AAR. See
+> [`iroh-kmp.md`](iroh-kmp.md) for the full setup. The historical notes below are
+> kept for context.
+
+---
+
 The `computer.iroh:iroh:1.0.0` Maven artifact ships the Kotlin/UniFFI glue plus
 desktop native libraries, but **not** the Android per-ABI `.so` files. You build
 those from [`n0-computer/iroh-ffi`](https://github.com/n0-computer/iroh-ffi) with
