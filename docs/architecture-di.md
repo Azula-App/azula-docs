@@ -115,8 +115,27 @@ put a fake in `-api`, inject it in tests (directly or via a test graph).
 
 ## Current module map
 
-`core` · `network-api`/`network-real` · `terminal-api` · `shared` (assembler,
-hosts `AppGraph` + `AzulaState`, being decomposed) · `android-app`/`jvm-app`/
-`ios-app` (platform assemblers). Still in `shared` pending extraction: `theme`
-(Compose resources), `model` (coupled to `a2ui`), `ui`, `persist`, `notify`,
-`a2ui`, `markdown`, `link`, and the rest of `AzulaState`.
+Foundation leaves: `core` (AppScope + value types) · `theme` · `ui-common` (image
+utils) · `markdown` · `link` · `a2ui`.
+
+Feature modules (api/real): `network-api`/`network-real` · `terminal-api`/
+`terminal-real` · `persistence-api`/`persistence-real` · `notification-api`.
+
+Assembly: `shared` hosts `AppGraph` + `AzulaState` and the remaining UI
+(`Chat`/`Connect`/`Sidebar`/`Settings`/`App`) + the `Message`↔DTO mappers;
+`android-app`/`jvm-app`/`ios-app` are the platform assemblers.
+
+### Remaining work
+
+`AzulaState` (~1100 lines) is still the app-shell coordinator. Splitting it into
+`connect`/`chat`/`profiles` feature services (and modules) is the last step, and
+the hardest: every feature mutates the same conversation state (`conversations` /
+`convState`) and shares one `applyFrame`/`receiveLoop` frame dispatcher. Do it in
+this order to keep the app green: (1) extract a `@SingleIn(AppScope)`
+`ConversationStore` service holding `conversations`/`convState` + the `conv`/
+`ensureConv` helpers + navigation; (2) carve each feature into a `@Inject` service
+that depends on `ConversationStore` (+ transport/stores), moving its `applyFrame`
+arm into a per-feature frame handler the connect service dispatches to; (3) shrink
+`AzulaState` to a thin facade (or delete it, exposing the services via graph
+accessors). The `TerminalSession` interface (terminal-api) is the template: a
+narrow contract the UI depends on, implemented by the owning service.
