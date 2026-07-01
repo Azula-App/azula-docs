@@ -125,29 +125,35 @@ Assembly: `shared` hosts `AppGraph` + `AzulaState` and the remaining UI
 (`Chat`/`Connect`/`Sidebar`/`Settings`/`App`) + the `Message`↔DTO mappers;
 `android-app`/`jvm-app`/`ios-app` are the platform assemblers.
 
-### AzulaState decomposition
+### AzulaState decomposition — complete
 
-`AzulaState` (was a 1105-line god-object) is now a **coordinator** that holds and
-delegates to `@Inject @SingleIn(AppScope)` services, so the UI's `state.xxx`
-surface is unchanged. Extracted:
+`AzulaState` (was a 1105-line god-object) is now a **thin coordinator** that holds
+and delegates to seven `@Inject @SingleIn(AppScope)` services, so the UI's
+`state.xxx` surface is unchanged. What it still owns is app-shell only: navigation
+(`desktopActive`/`mScreen`/`mActive`), the foreground flag, the offline demo
+terminal, and the `TerminalSession` implementation — plus the delegating facade.
 
-- **`ConversationStore`** — shared conversation state (`conversations`/`convState`),
-  lookup/create/name helpers, and the shared id generator. The foundation.
-- **`SurfaceStore`** — the live A2UI `surfaces` registry (shared state).
+Shared state:
+- **`ConversationStore`** — `conversations`/`convState`, lookup/create/name
+  helpers, and the shared id generator. The foundation.
+- **`SurfaceStore`** — the live A2UI surface registry.
+
+Feature services:
 - **`PersonaService`** — the user's personas + CRUD over `ProfileStore`.
 - **`PersistenceCoordinator`** — restore/save/delete of message history.
-- **`A2uiService`** — A2UI surface actions (send to peer when live, else local).
-- **`ChatService`** — sending text/file messages + the canned local assistant +
-  the `thinking` flag. Sends over the conversation's own stream, so it needs no
-  transport reference.
+- **`A2uiService`** — A2UI surface actions.
+- **`ChatService`** — text/file sends + the canned local assistant + `thinking`
+  (sends over the conversation's own stream, so it needs no transport reference).
+- **`ConnectService`** — the connect + transport core: owns the rebindable
+  `transport`, the dial/holepunch flow, silent reconnect, the inbound loop, the
+  `receiveLoop` + `applyFrame` **frame dispatcher** (fanning frames to
+  ChatService/terminal/SurfaceStore), the peer-profile handshake, and the connect
+  UI state. Its two app-shell hooks (navigate, foreground) are set by AzulaState
+  via callbacks to avoid a circular graph binding.
 
-What remains in the coordinator: the **connect + transport lifecycle** —
-`start()`/`bind`/rebind, `connectPeer`, `wireConv`, `receiveLoop`, `reconnectSaved`,
-and the `applyFrame` **frame router** that dispatches incoming frames to the
-services above. This is a legitimate coordinator responsibility (something must own
-the swappable `transport` and route frames). Pulling it into a `ConnectService`
-(and moving the services into `connect`/`chat` api/real modules) is the final step,
-but it's the app's connect/pairing core and can't be verified end-to-end without a
-live peer — so it warrants a focused change with real pairing tests, not a blind
-refactor. The `TerminalSession` interface (terminal-api) is the template for the
-narrow UI-facing contract to give the connect UI.
+These services are **internal** (not api/real feature modules): unlike `network`
+and `terminal`, they have no platform impls or UI-facing contract to split on —
+they're the coordinator's collaborators, so they live with `AppGraph` in the
+assembler. Verified end-to-end: real pairing against a live peer works through the
+refactored `ConnectService` dispatcher (drove a deeplink connect on-device; the
+peer registered the connection).
