@@ -17,11 +17,17 @@ azula is split across sibling git repos, all checked out under one parent
 directory (e.g. `~/Developer/azula/`). There is no monorepo — each repo builds,
 versions, and deploys on its own.
 
-- `azula-app/` — Kotlin Multiplatform (Amper) + Compose Multiplatform.
-  - `shared/` — the UI, state, markdown, and the iroh transport
-    (`expect`/`actual`). `src@jvmAndAndroid` uses `computer.iroh:iroh`; `src@ios`
-    bridges to a Swift `IrohLib` impl.
-  - `android-app/`, `jvm-app/`, `ios-app/` — thin per-platform entry points.
+- `azula-app/` — Kotlin Multiplatform (Amper) + Compose Multiplatform. Wired with
+  **Metro** compile-time DI (one flat graph) and split into **api/real** feature
+  modules — see [`docs/architecture-di.md`](docs/architecture-di.md) for the DI +
+  module conventions and how to add a feature module.
+  - `core/` — dependency leaf (the Metro `AppScope`).
+  - `network-api`/`network-real` — iroh transport interfaces + `FakeTransport` /
+    the real iroh-kmp transport. `terminal-api` — the `TermScreen` engine.
+  - `shared/` — the assembler: hosts `AppGraph` + `AzulaState` (being decomposed),
+    the UI, and the still-embedded features.
+  - `android-app/`, `jvm-app/`, `ios-app/` — thin per-platform entry points that
+    build the graph.
   - `design/`, `e2e/` — design mock notes and Maestro flows; the `./kotlin`
     wrapper and `project.yaml` live at this repo's root.
 - `azula-cli/` — Rust iroh server (the `azula` binary): `serve` (MCP client + PTY
