@@ -125,25 +125,29 @@ Assembly: `shared` hosts `AppGraph` + `AzulaState` and the remaining UI
 (`Chat`/`Connect`/`Sidebar`/`Settings`/`App`) + the `Message`↔DTO mappers;
 `android-app`/`jvm-app`/`ios-app` are the platform assemblers.
 
-### AzulaState decomposition — in progress
+### AzulaState decomposition
 
-`AzulaState` is being carved into `@Inject @SingleIn(AppScope)` services it holds
-and delegates to (so the UI's `state.xxx` surface is unchanged). Extracted so far:
+`AzulaState` (was a 1105-line god-object) is now a **coordinator** that holds and
+delegates to `@Inject @SingleIn(AppScope)` services, so the UI's `state.xxx`
+surface is unchanged. Extracted:
 
-- **`ConversationStore`** — the shared conversation state (`conversations` /
-  `convState`) + lookup/create/name helpers (`conv`, `ensureConv`, `glyphFor`,
-  `mnemonicCode`). The foundation every other service builds on.
+- **`ConversationStore`** — shared conversation state (`conversations`/`convState`),
+  lookup/create/name helpers, and the shared id generator. The foundation.
+- **`SurfaceStore`** — the live A2UI `surfaces` registry (shared state).
 - **`PersonaService`** — the user's personas + CRUD over `ProfileStore`.
-- **`PersistenceCoordinator`** — restore/save/delete of message history over
-  `ConversationStore` + `MessageStore`.
+- **`PersistenceCoordinator`** — restore/save/delete of message history.
+- **`A2uiService`** — A2UI surface actions (send to peer when live, else local).
+- **`ChatService`** — sending text/file messages + the canned local assistant +
+  the `thinking` flag. Sends over the conversation's own stream, so it needs no
+  transport reference.
 
-Remaining (the hardest): the connect + chat + a2ui logic still lives in
-`AzulaState` because it shares the `surfaces` map, the `transport`, and one
-`applyFrame`/`receiveLoop` **frame dispatcher**. To finish, keep going down the
-same path: carve a `ConnectService` (owns `transport`/`peerStore`, `connectPeer`,
-`wireConv`, `receiveLoop`, `reconnectSaved`) and a `ChatService` (`send`,
-`sendFile`, canned replies), moving each `applyFrame` arm into a per-feature
-handler the connect service dispatches to; then the feature services can move into
-`connect`/`chat` api/real modules, and `AzulaState` becomes a thin facade over the
-graph. The `TerminalSession` interface (terminal-api) is the template for the
-narrow UI-facing contract.
+What remains in the coordinator: the **connect + transport lifecycle** —
+`start()`/`bind`/rebind, `connectPeer`, `wireConv`, `receiveLoop`, `reconnectSaved`,
+and the `applyFrame` **frame router** that dispatches incoming frames to the
+services above. This is a legitimate coordinator responsibility (something must own
+the swappable `transport` and route frames). Pulling it into a `ConnectService`
+(and moving the services into `connect`/`chat` api/real modules) is the final step,
+but it's the app's connect/pairing core and can't be verified end-to-end without a
+live peer — so it warrants a focused change with real pairing tests, not a blind
+refactor. The `TerminalSession` interface (terminal-api) is the template for the
+narrow UI-facing contract to give the connect UI.
