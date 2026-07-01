@@ -50,10 +50,11 @@ and move both the runtime and compiler coordinates together.
   ```kotlin
   // Android (AzulaApplication): Context-backed impls
   createGraphFactory<AppGraph.Factory>().create(
-      scope = appScope, isDemo = isDemo, transport = createTransport(),
+      scope = appScope, transport = createTransport(),
       notifier = AndroidNotifier(this), messageStore = AndroidMessageStore(ctx), …
   ).azulaState
   // Desktop/iOS (rememberAzulaState): platform defaults, no notifier
+  // The -mock apps call buildMockState() (FakeTransport + null stores) instead.
   ```
 - **Platform-specific bindings come from platform source sets** (`src@android`,
   `src@ios`, …) as `@ContributesBinding(AppScope::class)`; aggregation is
@@ -70,9 +71,10 @@ and move both the runtime and compiler coordinates together.
 
 - **`core`** is the dependency leaf: `AppScope` + (eventually) pure value types.
   Everything may depend on it; it depends on nothing.
-- **Each feature = `{feature}-api` + `{feature}-real`.** `-api` holds interfaces,
-  wire types, and fakes; `-real` holds implementations and platform code. A module
-  may depend only on another feature's **`-api`**, never its `-real`.
+- **Each feature = `{feature}-api` + `{feature}-real`.** `-api` holds interfaces
+  and wire types; `-real` holds implementations and platform code. A module may
+  depend only on another feature's **`-api`**, never its `-real`. (Fakes live in
+  `mock-support`, not in `-api`, so no fake code ships in the real app.)
 - **Keep the same package across api/real** (e.g. both network modules are
   `dev.azula.net`). Call sites don't change when code moves modules, and the
   api/real boundary is enforced by the *module* graph, not by package names.
@@ -82,16 +84,19 @@ and move both the runtime and compiler coordinates together.
 
 ### Worked examples in the tree
 - **network** — `network-api` (`IrohTransport`/`P2pStream` interfaces, `Frame`
-  protocol, `Alpns`, `FakeTransport`) + `network-real` (iroh-kmp transport, peer
-  stores, `createTransport`). Nothing above the transport sees iroh-kmp.
+  protocol, `Alpns`) + `network-real` (iroh-kmp transport, peer stores,
+  `createTransport`). Nothing above the transport sees iroh-kmp.
 - **terminal** — `terminal-api` (the `TermScreen` engine + `KeyBytes`), pure logic
   over Compose state. UI + `TerminalSession` land in `terminal-real`.
+- **mock-support** — the fakes kept out of the real app: `FakeTransport` (fake
+  network + terminal + chat loopback) and `buildMockState()`. Depended on only by
+  the `-mock` apps.
 
 ## Testing (mock at the api seam)
 
 Because callers depend only on `-api` interfaces, tests bind fakes with no
 platform/native deps. The network is the template — `FakeTransport` (in
-`network-api`) drives the whole path with no iroh binding:
+`mock-support`) drives the whole path with no iroh binding:
 
 ```kotlin
 val transport: IrohTransport = FakeTransport()
@@ -99,8 +104,19 @@ transport.bind(listOf(Alpns.CHAT))
 val stream = transport.connect("any-ticket", Alpns.CHAT)   // loopback echo
 ```
 
-See `network-api/test/FakeTransportTest.kt`. Apply the same shape per feature:
-put a fake in `-api`, inject it in tests (directly or via a test graph).
+See `mock-support/test/FakeTransportTest.kt`. Apply the same shape per feature:
+put a fake in `mock-support`, inject it in tests (directly or via a test graph).
+
+## The `-mock` apps (real UI, fake backend)
+
+Each platform has a sibling `-mock` app — `android-app-mock`, `jvm-app-mock`,
+`ios-app-mock` — that runs the *real* UI over `FakeTransport` and no persistence,
+so the fakes never touch the shipping app. Each pre-installs
+`AppStateHost.shared = buildMockState(scope)` (from `mock-support`) before the
+composition, so `rememberAzulaState()` returns it and the real transport is never
+created. Android's mock uses a separate `applicationId` (`app.azula.mock`) so it
+installs alongside the real app, and has no foreground service / notifier / iroh
+dep. The Maestro flows in `e2e/` drive these `-mock` apps.
 
 ## Adding a feature module (recipe)
 

@@ -22,12 +22,15 @@ versions, and deploys on its own.
   modules — see [`docs/architecture-di.md`](docs/architecture-di.md) for the DI +
   module conventions and how to add a feature module.
   - `core/` — dependency leaf (the Metro `AppScope`).
-  - `network-api`/`network-real` — iroh transport interfaces + `FakeTransport` /
-    the real iroh-kmp transport. `terminal-api` — the `TermScreen` engine.
+  - `network-api`/`network-real` — iroh transport interfaces / the real iroh-kmp
+    transport. `terminal-api` — the `TermScreen` engine.
+  - `mock-support/` — the fakes kept out of the real app: `FakeTransport` +
+    `buildMockState()`, used only by the `-mock` apps.
   - `shared/` — the assembler: hosts `AppGraph` + `AzulaState` (being decomposed),
     the UI, and the still-embedded features.
   - `android-app/`, `jvm-app/`, `ios-app/` — thin per-platform entry points that
-    build the graph.
+    build the graph. Each has a sibling `-mock` app (`android-app-mock`, …) that
+    injects the fakes for UI tests.
   - `design/`, `e2e/` — design mock notes and Maestro flows; the `./kotlin`
     wrapper and `project.yaml` live at this repo's root.
 - `azula-cli/` — Rust iroh server (the `azula` binary): `serve` (MCP client + PTY
