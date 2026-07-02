@@ -75,6 +75,18 @@ can read:
 
 To see which devices are paired/connected, read those files.
 
+## Keeping docs in sync
+
+Plan files (`~/.claude/plans/…`) are **ephemeral** — they get overwritten on the
+next task, so design must not live only there. **Whenever you do design or
+architecture work — i.e. whenever you write or overwrite a plan doc — capture the
+durable version in this repo (`azula-docs`):** add or update a prose page under
+`docs/` and link it from the relevant CLAUDE.md. Treat "I'm about to overwrite the
+plan doc" as the trigger to update `azula-docs`. Areas that should each keep an
+up-to-date `docs/` page: the DI/module architecture (`docs/architecture-di.md`),
+the terminal emulator, identity backup (recovery phrase), and the MCP↔iroh bridge
+(`serve-mcp` HTTP + the stdio `mcp` subcommand, its tools, and A2UI usage).
+
 ## Conventions
 
 - Custom fonts fall back to system families until `.ttf` are added to
