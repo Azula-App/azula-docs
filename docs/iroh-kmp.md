@@ -26,8 +26,20 @@ iroh-kmp/
 
 API (generated into `app.azula.iroh`): `IrohEndpoint.bind(alpns, secretKey?)`,
 `nodeId()`, `secretKeyBytes()`, `myTicket()`, `connect(ticket, alpn)`,
-`acceptNext(): IncomingConn?`, `shutdown()`; `IrohStream.sendBytes/recv/finish`.
-This maps 1:1 onto the app's `IrohTransport`/`P2pStream`.
+`acceptNext(): IncomingConn?`, `shutdown()`; `IrohStream.sendBytes/recv/finish`
+and `rttMs(): ULong?`. This maps 1:1 onto the app's `IrohTransport`/`P2pStream`.
+
+### Per-connection latency (`rttMs`)
+
+`IrohStream` retains the originating `iroh::endpoint::Connection` (a cheap `Clone`
+handle) so it can surface the live QUIC round-trip time: `rtt_ms()` reads the
+smoothed RTT of the connection's **selected path** (`conn.paths()` → the path where
+`is_selected()` → `path.rtt()`), returning `None` before a path is established. It's
+a synchronous, non-blocking snapshot. The app exposes this as `P2pStream.rttMs():
+Long?`; `ConnectService` polls it (~2s) into a per-conversation `ConversationState.rttMs`,
+which the chat header and each conversation-list row display. No wire-protocol
+(`Frame`) change is involved — the RTT comes from QUIC itself, so it works for every
+conversation kind (chat, terminal, LLM/MCP bridge). The mock transport returns null.
 
 ## The two non-obvious fixes
 
