@@ -149,7 +149,7 @@ Assembly: `shared` hosts `AppGraph` + `AzulaState` and the remaining UI
 ### AzulaState decomposition — complete
 
 `AzulaState` (was a 1105-line god-object) is now a **thin coordinator** that holds
-and delegates to eight `@Inject @SingleIn(AppScope)` services, so the UI's
+and delegates to nine `@Inject @SingleIn(AppScope)` services, so the UI's
 `state.xxx` surface is unchanged. What it still owns is app-shell only: navigation
 (`desktopActive`/`mScreen`/`mActive`), the foreground flag, and the
 `TerminalSession` implementation — plus the delegating facade.
@@ -165,6 +165,10 @@ Feature services:
 - **`A2uiService`** — A2UI surface actions.
 - **`ChatService`** — text/file sends + `thinking` (sends over the
   conversation's own stream, so it needs no transport reference).
+- **`MediaService`** — the media-attachment lifecycle: blob-backed send/offer,
+  the resumable `azula/media/0` fetch protocol (both sides), auto-download
+  policy, and blob read helpers for the UI. See
+  [`media-transfer.md`](media-transfer.md).
 - **`FrameDispatcher`** — the inbound-frame reaction core: `applyFrame` (fanning
   Chat/Term/Thinking/A2ui/Token frames to ChatService/terminal/SurfaceStore),
   `applyProfile`, the peer-profile share handshake, and notification posting.

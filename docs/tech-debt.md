@@ -25,7 +25,19 @@ themselves aren't. Also: `e2e/ios.yaml` never exercises the connect flow
   device. Harmless but worth deciding intentionally.
 See `identity.md` (Restore flow).
 
-## 3. Identity key at rest is cleartext on iOS and desktop
+## 3. Media feature: unverified-on-device surfaces (2026-07-03)
+
+The streamed-media feature (`media-transfer.md`) compiles on all targets and
+its state layer is unit-tested, but this environment has no simulator/display,
+so the following need a human pass on real devices: iOS picker delegate
+retention + `keyWindow` presentation on multi-scene apps, AVPlayer embedding,
+HEIC/HEVC type identifiers from PHPicker, attach-menu styling, fullscreen
+overlay hit-testing (scrim-tap vs player controls), and audio-bar UX. Desktop
+video stays poster + system-player by design. A future iroh-kmp
+`open_bi` sibling-stream FFI would let media fetches share the conversation's
+QUIC connection instead of dialing a new one.
+
+## 4. Identity key at rest is cleartext on iOS and desktop
 
 Only Android encrypts the secret key (Keystore-backed
 EncryptedSharedPreferences). iOS stores it in `NSUserDefaults` and desktop in
