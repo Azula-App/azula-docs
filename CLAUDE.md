@@ -84,8 +84,9 @@ durable version in this repo (`azula-docs`):** add or update a prose page under
 `docs/` and link it from the relevant CLAUDE.md. Treat "I'm about to overwrite the
 plan doc" as the trigger to update `azula-docs`. Areas that should each keep an
 up-to-date `docs/` page: the DI/module architecture (`docs/architecture-di.md`),
-the terminal emulator, identity backup (recovery phrase), and the MCP↔iroh bridge
-(`serve-mcp` HTTP + the stdio `mcp` subcommand, its tools, and A2UI usage).
+the terminal emulator, identity backup (recovery phrase), the MCP↔iroh bridge
+(`serve-mcp` HTTP + the stdio `mcp` subcommand, its tools, and A2UI usage), and the
+A2UI component catalog + neon-glass design system (`docs/a2ui.md`).
 
 ## Conventions
 
