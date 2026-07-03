@@ -118,9 +118,14 @@ sharing a persona is an optional inline step, never blocking.
   unverified}`.
 - **CLI**: `~/.azula/invites.json` (same `IssuedInvite` shape; dir overridable
   like the registry). Minted by `azula invite [--expires 1h|24h|7d|never]
-  [--sign] [--single-use] [--label …]`; listed by `azula invites`; revoked by
-  `azula invite revoke <id>`. `serve`/`serve-mcp` mint a signed 24 h invite
-  for their startup pairing QR instead of printing the raw ticket.
+  [--sign] [--single-use] [--label …] [--bridge]`; listed by `azula invites`;
+  revoked by `azula invite revoke <id>`. `serve`/`serve-mcp` mint a signed
+  24 h invite for their startup pairing QR instead of printing the raw
+  ticket. `azula invite` targets the `serve` identity by default and the
+  bridge identity with `--bridge` — these are different persisted node keys
+  (see [`mcp-bridge.md`](mcp-bridge.md#pairing-flow)), so an invite must be
+  minted for whichever identity (`azula serve` vs. `serve-mcp`/`mcp`) is
+  meant to accept it.
 
 ## Test vectors
 

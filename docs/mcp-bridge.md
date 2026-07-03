@@ -137,6 +137,19 @@ of a surface.
    own_name}` frame back so the phone titles the conversation (e.g. "Claude");
    refine it later with `set_name`.
 
+**Invite identity gotcha:** the bridge (`serve-mcp`/`mcp`) persists its own
+node key under a `"bridge"` identity name, separate from `azula serve`'s
+`"serve"` identity — see [`identity.md`](identity.md). A plain `azula invite`
+mints against the `serve` identity, so it will **not** be accepted by a
+running `serve-mcp`/`mcp` bridge (different node id → the invite's embedded
+ticket doesn't name this process, failing rule 2 in
+[`invitations.md`](invitations.md#verification-accept-side)). To mint a
+pairing invite for a bridge from the CLI, use `azula invite --bridge`
+(mints against the bridge identity instead); the bridge's own startup banner
+and the `start_pairing` tool already mint bridge-identity invites, so this
+flag is only needed for minting one out-of-band (e.g. ahead of time, to hand
+to someone before the bridge is running).
+
 ## Device registry + runtime state
 
 See [`CLAUDE.md`'s "azula device registry"](../CLAUDE.md) section for the
