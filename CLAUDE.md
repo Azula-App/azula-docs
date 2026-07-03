@@ -98,7 +98,8 @@ up-to-date `docs/` page: the DI/module architecture (`docs/architecture-di.md`),
 the terminal emulator (`docs/terminal.md`), identity backup / recovery phrase
 (`docs/identity.md`), the MCP↔iroh bridge — `serve-mcp` HTTP + the stdio `mcp`
 subcommand, its tools, and A2UI usage (`docs/mcp-bridge.md`), streamed media
-attachments (`docs/media-transfer.md`), and the A2UI
+attachments (`docs/media-transfer.md`), the invitation payload / share-link
+format and its verification model (`docs/invitations.md`), and the A2UI
 component catalog + neon-glass design system (`docs/a2ui.md`). The testing
 strategy — which layer (unit / Compose UI test / Maestro) owns which kind of
 coverage — is `docs/testing.md`; read it before adding tests. Known tech debt
