@@ -37,7 +37,7 @@ dialing any disconnected device that has mail queued (see Offline mailbox).
 
 ## Tool catalog
 
-All 12 tools live in the `#[tool_router] impl AzulaBridge` block
+All 13 tools live in the `#[tool_router] impl AzulaBridge` block
 (`bridge/tools.rs`):
 
 | Tool | Params | Does | Offline behavior |
@@ -45,7 +45,8 @@ All 12 tools live in the `#[tool_router] impl AzulaBridge` block
 | `connect` | `url`, `name?` | Parses a ticket/URL (`parse_ticket`, 4 forms below), saves it to the registry, dials it. Sends a `hello` frame first so peer bridges can name this bridge. | Saves + reports "saved (could not connect now)" if the dial fails |
 | `list_devices` | — | Union of registry + in-memory devices with fingerprint and status (`connected`/`disconnected`/`offline`) | n/a |
 | `send_message` | `device`, `text` | Streams `text` to the device as a chat assistant reply (`thinking(true)` → `token` → `token_done` → `thinking(false)` frames) | Queued to the device's mailbox, tool returns success with "queued…(offline)" |
-| `get_messages` | `device?` | Non-blocking drain of one device's inbox, or all devices' (prefixed `《name》`) if omitted. Lines are user chat text, peer `say` text, or `ui-event: {...}` JSON from an A2UI tap | n/a (reads only) |
+| `send_file` | `device`, `path`, `caption?` | Reads a local file (`path` is on the machine running the bridge, not the phone), infers its mime type from the extension, and streams it inline as `file_begin` → `file_chunk`×N → `file_end` (see [File transfer](#file-transfer) below). This is the tool for sending an **image** to the user — `render_ui`'s `Image` component only renders small embedded data URIs. | Requires a live connection (`ensure_device`); errors if unreachable — not queued (a large file would blow the mailbox's 1000-frame cap) |
+| `get_messages` | `device?` | Non-blocking drain of one device's inbox, or all devices' (prefixed `《name》`) if omitted. Lines are user chat text, peer `say` text, `ui-event: {...}` JSON from an A2UI tap, or `[received file: ...]` from an inbound attachment | n/a (reads only) |
 | `wait_for_reply` | `device`, `timeout_s?` (default 120) | Long-polls (200ms interval) the device's inbox until non-empty or timeout; returns `"(no reply within Ns)"` on timeout | n/a |
 | `set_name` | `description?`, `name?`, `device?` | Sends a `Profile` frame to set the conversation's displayed name (default: bridge's own name, usually left unset) and description (e.g. `"azula / terminal refactor"`); applies to one device or all connected | Silently sends to whichever devices are currently connected; not queued |
 | `say` | `device`, `text`, `done?` | Peer-bridge-to-peer-bridge chat message (not for app devices). Enforces `max_turns`; closes the conversation and notifies the peer at the cap, or when `done=true` | Queued as a `Chat` frame if the peer is unreachable |
@@ -55,10 +56,42 @@ All 12 tools live in the `#[tool_router] impl AzulaBridge` block
 | `start_pairing` | — | Returns the bridge's own pairing URL (`https://azula.app/s/<ticket>`) + a Unicode QR block to show the user | n/a |
 | `disconnect` | `device`, `forget?` | Drops the live send stream (and connected flag); `forget=true` also deletes the device from both registry files | n/a |
 
-`send_message` and `say` are the only tools with mailbox fallback — `render_ui`/`update_ui`/`delete_ui`
+`send_message` and `say` are the only tools with mailbox fallback — `send_file`/`render_ui`/`update_ui`/`delete_ui`
 require a live stream and fail outright if the device is unreachable (A2UI surface state isn't
-something the app can replay from a queue). All tools lazily (re)dial a known-but-disconnected
+something the app can replay from a queue, and a multi-megabyte file isn't something the
+1000-frame mailbox cap can hold). All tools lazily (re)dial a known-but-disconnected
 device via `ensure_device()` before giving up.
+
+## File transfer
+
+`send_file` and the bridge's inbound reader speak the app's "legacy inline"
+file-transfer wire format (`azula-app/network-api/src/dev/azula/net/FileTransfer.kt`;
+mirrored in `azula-cli/src/proto.rs`'s `Frame::FileBegin`/`FileChunk`/`FileEnd` and
+implemented in `azula-cli/src/filexfer.rs`) — the same path used for LLM-bridge
+conversations app-side (`ChatService.sendFile`). Peer-to-peer chats instead use the
+out-of-band `MediaOffer`/fetch path documented in
+[`media-transfer.md`](media-transfer.md); azula-cli doesn't need to implement that side.
+
+**Outbound (`send_file`):** reads the file, infers mime from the extension (a small
+built-in table — png/jpg/jpeg/gif/webp/svg → image/\*, mp4/mov, mp3/wav/ogg, pdf,
+txt/md, else `application/octet-stream`; no mime-guessing crate is a dependency),
+rejects files over 64 MiB (`MAX_FILE_BYTES`, matching the app's cap), then writes
+`file_begin` (fresh UUID id, `encoding:"base64"`) → one `file_chunk` per 32 KiB
+slice (standard padded base64, `seq` from 0) → `file_end` on the device's existing
+chat stream — the same write path `send_message` uses.
+
+**Inbound:** the per-connection reader (`bridge/device.rs`'s `read_frames_into`)
+accumulates `file_chunk` data (by id) between a `file_begin` and matching `file_end`,
+base64-decoding each chunk; stray frames for an unrecognized id are skipped. A
+declared size over 64 MiB is rejected up front (surfaced as a
+`[rejected file: ...]` inbox line) without buffering the transfer; an
+`encoding` other than `"base64"` is logged and skipped rather than errored (the
+app only ever sends base64 from its File-attach path). A completed transfer is
+written to `~/.azula/received/<sanitized-name>` (collisions get a `-1`, `-2`, …
+suffix; `AZULA_RECEIVED_DIR` overrides the directory, mirroring
+`AZULA_MAILBOX_DIR`) and surfaced through the inbox — so `get_messages`/
+`wait_for_reply` — as `[received file: <name> (<mime>, <size> bytes) -> <path>]`,
+with `caption: <text>` appended if the sender included one.
 
 `get_messages` and `wait_for_reply` are the two ways to receive; the tool descriptions in
 `ServerHandler::get_info()`'s `instructions` string spell out the recommended loop
@@ -73,6 +106,14 @@ reproduced verbatim in `render_ui`'s `#[tool(description = …)]` string (it mus
 be kept in lockstep with the app's renderer) — see
 [`a2ui.md`](a2ui.md) for the design-system summary and where the renderer
 lives; don't duplicate the catalog here.
+
+**Images in A2UI:** the `Image` component's `url` prop only renders a
+`data:image/...;base64,...` URI — a remote `http(s)://` URL renders a themed
+placeholder instead, since the app never fetches it. So an agent has two
+options for showing a picture: embed a small image as a data URI directly in
+`render_ui`'s `components`, or call **`send_file`** to deliver a real image (of
+any size up to 64 MiB) as its own inline chat attachment rather than as part
+of a surface.
 
 ## Pairing flow
 
