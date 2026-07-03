@@ -8,7 +8,7 @@ Delete entries as they land.
 
 ## 1. Settings.kt has no UI test coverage
 
-`azula-app/shared/src/dev/azula/ui/Settings.kt` (~400 lines: personas, avatar
+`azula-app/shared/src/dev/azula/ui/Settings.kt` (personas, avatar
 upload, recovery-phrase reveal/restore dialogs) is the most security-adjacent
 UI and has no unit or e2e coverage. The state-layer glue underneath it is now
 tested (`mock-support/test/RecoveryPhraseRestoreTest.kt`), but the dialogs
@@ -47,3 +47,34 @@ EncryptedSharedPreferences). iOS stores it in `NSUserDefaults` and desktop in
 a plain file `~/.azula/endpoint.key`. Moving iOS to the Keychain (and desktop
 to the OS keystore where available) would close the gap. See `identity.md`
 (Security considerations).
+
+## 5. Invitations transition + follow-ups (2026-07-03)
+
+The invite payload / connect-gate revamp shipped (see `invitations.md`). Open
+tails:
+
+- **Legacy inbound is still admitted.** `allowLegacyInbound` (app) and
+  `--allow-legacy` (CLI `serve`/`serve-mcp`/`mcp`) default **on** for this one
+  release so invite-less strangers land in the inbox marked "unverified"
+  instead of being dropped. Flip both defaults **off** the release after, and
+  delete the unverified path once no old clients remain.
+- **Legacy `/s/` and `/connect/` links** still parse everywhere for outbound
+  dialing. Keep for the transition, then remove the parse branches in
+  `azula-cli/src/link.rs`, `azula-app/link/.../DeepLink.kt`, and the
+  `azula-site` routes.
+- **InviteReviewSheet has no Compose UI test.** The inbound accept/decline
+  review path can't be driven by `FakeTransport` (it only simulates its fixed
+  one-shot "mockterm" connection, not a generic inbound stranger). The gate
+  logic is covered at the service layer (`StrangerGateTest`,
+  `InviteServiceTest`); a UI test needs a fake transport that can emit an
+  arbitrary inbound `IncomingConnection`.
+- **`iroh-kmp` publish gotcha.** `./gradlew publishToMavenLocal` pulls in
+  `cargoBuildLinuxArm64Debug`/`…X64`/`MinGWX64` even though no Linux/Windows
+  KMP variant is published; on a Mac these fail (`aarch64-linux-gnu-gcc` etc.
+  not installed) and fail the whole publish. Work around with
+  `-x cargoBuildLinux… -x cargoBuildMinGW…`; the durable fix is to gate those
+  cargo tasks off on hosts lacking the cross-toolchain in `build.gradle.kts`.
+- **Worker-side signature verification** on the `/i/` invite page is not done
+  (the page shows a "signed" badge from the flag but doesn't verify the
+  Ed25519 signature — it would need to parse the node id out of the postcard
+  ticket in TS). App and CLI both verify; the page is advisory only.

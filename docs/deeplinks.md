@@ -11,8 +11,12 @@ The plumbing is already in place with **placeholders**:
 - Shared: `dev.azula.link.AzulaLinks.parse` + `DeepLinkBus`; an incoming token is
   dialed by `ConnectService.connectPeer` (via the `AzulaState` coordinator).
 
+The canonical share link is now `https://azula.app/i/<payload>` (a compact,
+optionally-signed invite — see `invitations.md`); the Android app-link
+intent-filter covers `/i/` alongside the legacy `/s/` and `/connect/` paths, so
+add `/i/*` to the AASA/`assetlinks` path lists when finalizing the values below.
 Links route into the existing connect flow, so once the values below are real,
-tapping `https://azula.app/s/<token>` opens the app and dials the session.
+tapping `https://azula.app/i/<payload>` opens the app and dials the session.
 
 ## iOS (Universal Links)
 
@@ -65,5 +69,7 @@ Add the **azula.app** zone to the Cloudflare account and point DNS at it; the
 - **MCP bridge:** `/mcp/<token>` is a documented placeholder (Workers can't speak
   iroh). Stand up the bridge and wire it — see `azula-site/URLS.md` ("Why the bridge is
   separate").
-- **Token format:** today a token is the raw iroh ticket. If you want short,
-  revocable links, add the KV-backed short-id scheme described in `azula-site/URLS.md`.
+- **Link format:** the canonical link is the self-contained `/i/<payload>` invite
+  (signed/expiring/revocable, no server state) — see `invitations.md`. The legacy
+  `/s/<ticket>` raw-ticket links still parse for the transition and should be
+  removed once no old clients remain (tracked in `tech-debt.md`).

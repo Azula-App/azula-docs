@@ -9,7 +9,10 @@ where the key lives per platform, and the export/restore flows. Companion to
 An azula identity **is** an iroh node keypair: a 32-byte `SecretKey`. The node
 id (hex-encoded pubkey) is what makes a device's "code"/ticket/QR stable across
 relaunches — lose the key, get a new unrelated node id. No account, no
-server-side identity. Personas (name/avatar/description, `Persona` in
+server-side identity. The same key also **signs invitations**: an issued invite
+can carry an Ed25519 signature by this node key, verified against the node id
+embedded in the invite's ticket (see [`invitations.md`](invitations.md)) — the
+one place identity key material is used for signing rather than transport TLS. Personas (name/avatar/description, `Persona` in
 `Settings.kt`) are a separate cosmetic layer shared per-conversation
 (`Frame.Profile`) — not the identity, not covered by the recovery phrase.
 `azula-cli`'s long-lived commands (`serve`, `bridge`, `blackjack`) keep their
