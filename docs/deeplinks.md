@@ -2,14 +2,14 @@
 
 The plumbing is already in place with **placeholders**:
 
-- Site: `site/src/wellknown.ts` serves the iOS AASA and Android `assetlinks.json`
+- Site: `azula-site/src/wellknown.ts` serves the iOS AASA and Android `assetlinks.json`
   (placeholders `TEAMID` and `REPLACE_WITH_RELEASE_SHA256_FINGERPRINT`).
 - Android: app-link intent-filter (`autoVerify`) + `azula://` scheme in
   `android-app/src/AndroidManifest.xml`; handled in `MainActivity`.
 - iOS: `azula://` scheme in `Info.plist`; `applinks:azula.app` in
   `ios-app/src/azula.entitlements`; `.onOpenURL` in `iosApp.swift`.
 - Shared: `dev.azula.link.AzulaLinks.parse` + `DeepLinkBus`; an incoming token is
-  dialed by `AzulaState.connectPeer`.
+  dialed by `ConnectService.connectPeer` (via the `AzulaState` coordinator).
 
 Links route into the existing connect flow, so once the values below are real,
 tapping `https://azula.app/s/<token>` opens the app and dials the session.
@@ -18,7 +18,7 @@ tapping `https://azula.app/s/<token>` opens the app and dials the session.
 
 1. In your Apple Developer account note the **Team ID** (10 chars) and the app's
    **bundle identifier** (`PRODUCT_BUNDLE_IDENTIFIER`).
-2. In `site/src/wellknown.ts` set `IOS_APP_ID = "<TeamID>.<bundleId>"` and redeploy
+2. In `azula-site/src/wellknown.ts` set `IOS_APP_ID = "<TeamID>.<bundleId>"` and redeploy
    the Worker.
 3. In Xcode (the `ios-app` target): enable the **Associated Domains** capability
    and set **Code Signing Entitlements** to `ios-app/src/azula.entitlements`
@@ -36,7 +36,7 @@ tapping `https://azula.app/s/<token>` opens the app and dials the session.
    If you use **Play App Signing**, copy the SHA-256 from
    Play Console → Test and release → App integrity → *App signing key certificate*
    (the Google-managed key, not the upload key). You can list both.
-2. In `site/src/wellknown.ts` set `ANDROID_SHA256` to that fingerprint
+2. In `azula-site/src/wellknown.ts` set `ANDROID_SHA256` to that fingerprint
    (uppercase, colon-separated) and confirm `ANDROID_PACKAGE = "app.azula"`
    matches the `applicationId`. Redeploy the Worker.
 3. Verify: `curl -s https://azula.app/.well-known/assetlinks.json` returns the JSON
@@ -48,7 +48,7 @@ tapping `https://azula.app/s/<token>` opens the app and dials the session.
 ## Deploy the site
 
 ```sh
-cd site
+cd azula-site
 npm install
 npx wrangler login          # once
 npx wrangler deploy
@@ -60,10 +60,10 @@ Add the **azula.app** zone to the Cloudflare account and point DNS at it; the
 ## Loose ends to finish
 
 - **Store links:** replace the placeholder `#ios-not-published` /
-  `#android-not-published` anchors in `site/src/pages.ts` (`STORE_BTNS`) with the
+  `#android-not-published` anchors in `azula-site/src/pages.ts` (`STORE_BTNS`) with the
   real App Store / Google Play URLs.
 - **MCP bridge:** `/mcp/<token>` is a documented placeholder (Workers can't speak
-  iroh). Stand up the bridge and wire it — see `site/URLS.md` ("Why the bridge is
+  iroh). Stand up the bridge and wire it — see `azula-site/URLS.md` ("Why the bridge is
   separate").
 - **Token format:** today a token is the raw iroh ticket. If you want short,
-  revocable links, add the KV-backed short-id scheme described in `site/URLS.md`.
+  revocable links, add the KV-backed short-id scheme described in `azula-site/URLS.md`.

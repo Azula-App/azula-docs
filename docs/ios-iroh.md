@@ -1,5 +1,15 @@
 # iOS: wiring the iroh Swift package
 
+> **⛔️ OBSOLETE (2026-06) — superseded by the `iroh-kmp` SDK.**
+> The Swift bridge described below has been **removed**: `SwiftTransportBridge.kt`
+> and `IrohSwiftRegistry` no longer exist, `iosApp.swift` is simplified, and iOS
+> gets iroh from the Kotlin/Native `app.azula.iroh:iroh-kmp` binding like the
+> other platforms — no Swift package, no Xcode package dependency. Do **not**
+> follow the steps below. See [`iroh-kmp.md`](iroh-kmp.md) for the current
+> setup. The historical notes are kept for context only.
+
+---
+
 Kotlin/Native cannot call the `IrohLib` Swift package directly, so the iOS
 transport is implemented in Swift and injected into the shared Kotlin code:
 

@@ -3,7 +3,9 @@
 `iroh-kmp/` (sibling repo, package `app.azula.iroh`) is a minimal iroh SDK for
 Kotlin Multiplatform. It wraps iroh in a small Rust + UniFFI crate and generates
 JNI/JNA + Kotlin/Native bindings with [Gobley](https://gobley.dev), published to
-mavenLocal as `app.azula.iroh:iroh-kmp:0.1.0`. It replaces `computer.iroh:iroh`
+mavenLocal as `app.azula.iroh:iroh-kmp` (version per `iroh-kmp/build.gradle.kts`,
+currently `0.1.2`; azula-app pins it in `android-app/module.yaml` and
+`jvm-app/module.yaml`). It replaces `computer.iroh:iroh`
 on jvm + android and unblocks real iroh on Android.
 
 ## Why it exists

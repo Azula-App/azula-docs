@@ -61,9 +61,12 @@ and move both the runtime and compiler coordinates together.
   scope/classpath-driven, so the module declaring `scope = AppScope::class` merges
   everything its dependencies contribute. (We currently pass platform impls through
   the factory; contributed bindings are the target as feature modules land.)
-- **No service-locator globals.** The old `object …Config { var … }` holders and
-  `AppStateHost` are gone — the graph is created once per process and owns the
-  singletons.
+- **No service-locator globals for dependencies.** The old `object …Config { var … }`
+  holders are gone — the graph is created once per process and owns the
+  singletons. The one deliberate exception is `AppStateHost.shared`
+  (`shared/src/dev/azula/state/AppEntry.kt`): a process-wide handle to the built
+  `AzulaState`, needed on Android so a notification-tap `Intent` can reach state
+  outside Compose; the `-mock` apps also use it to pre-install the fake state.
 - **Compose stays parameterized.** Composables take feature `-api` interfaces as
   params from graph accessors at the root — no member injection into UI.
 
@@ -86,8 +89,10 @@ and move both the runtime and compiler coordinates together.
 - **network** — `network-api` (`IrohTransport`/`P2pStream` interfaces, `Frame`
   protocol, `Alpns`) + `network-real` (iroh-kmp transport, peer stores,
   `createTransport`). Nothing above the transport sees iroh-kmp.
-- **terminal** — `terminal-api` (the `TermScreen` engine + `KeyBytes`), pure logic
-  over Compose state. UI + `TerminalSession` land in `terminal-real`.
+- **terminal** — `terminal-api` (the `TerminalEmulator` engine, `PredictionEngine`,
+  `KeyBytes`, and the `TerminalSession` contract), pure logic over Compose state.
+  The terminal UI + real session implementations live in `terminal-real`. See
+  [`terminal.md`](terminal.md).
 - **mock-support** — the fakes kept out of the real app: `FakeTransport` (fake
   network + terminal + chat loopback) and `buildMockState()`. Depended on only by
   the `-mock` apps.
@@ -144,10 +149,10 @@ Assembly: `shared` hosts `AppGraph` + `AzulaState` and the remaining UI
 ### AzulaState decomposition — complete
 
 `AzulaState` (was a 1105-line god-object) is now a **thin coordinator** that holds
-and delegates to seven `@Inject @SingleIn(AppScope)` services, so the UI's
+and delegates to eight `@Inject @SingleIn(AppScope)` services, so the UI's
 `state.xxx` surface is unchanged. What it still owns is app-shell only: navigation
-(`desktopActive`/`mScreen`/`mActive`), the foreground flag, the offline demo
-terminal, and the `TerminalSession` implementation — plus the delegating facade.
+(`desktopActive`/`mScreen`/`mActive`), the foreground flag, and the
+`TerminalSession` implementation — plus the delegating facade.
 
 Shared state:
 - **`ConversationStore`** — `conversations`/`convState`, lookup/create/name
@@ -158,14 +163,18 @@ Feature services:
 - **`PersonaService`** — the user's personas + CRUD over `ProfileStore`.
 - **`PersistenceCoordinator`** — restore/save/delete of message history.
 - **`A2uiService`** — A2UI surface actions.
-- **`ChatService`** — text/file sends + the canned local assistant + `thinking`
-  (sends over the conversation's own stream, so it needs no transport reference).
+- **`ChatService`** — text/file sends + `thinking` (sends over the
+  conversation's own stream, so it needs no transport reference).
+- **`FrameDispatcher`** — the inbound-frame reaction core: `applyFrame` (fanning
+  Chat/Term/Thinking/A2ui/Token frames to ChatService/terminal/SurfaceStore),
+  `applyProfile`, the peer-profile share handshake, and notification posting.
+  Its `foreground` hook is set by AzulaState via a callback.
 - **`ConnectService`** — the connect + transport core: owns the rebindable
-  `transport`, the dial/holepunch flow, silent reconnect, the inbound loop, the
-  `receiveLoop` + `applyFrame` **frame dispatcher** (fanning frames to
-  ChatService/terminal/SurfaceStore), the peer-profile handshake, and the connect
-  UI state. Its two app-shell hooks (navigate, foreground) are set by AzulaState
-  via callbacks to avoid a circular graph binding.
+  `transport`, the dial/holepunch flow, silent reconnect, the inbound accept
+  loop, the `receiveLoop` (reads frames off the wire and hands them to
+  FrameDispatcher), rtt polling, recovery-phrase export/import, and the connect
+  UI state. Its `onNavigate` hook is set by AzulaState via a callback to avoid
+  a circular graph binding. Depends one-directionally on FrameDispatcher.
 
 These services are **internal** (not api/real feature modules): unlike `network`
 and `terminal`, they have no platform impls or UI-facing contract to split on —

@@ -21,21 +21,32 @@ versions, and deploys on its own.
   **Metro** compile-time DI (one flat graph) and split into **api/real** feature
   modules — see [`docs/architecture-di.md`](docs/architecture-di.md) for the DI +
   module conventions and how to add a feature module.
-  - `core/` — dependency leaf (the Metro `AppScope`).
-  - `network-api`/`network-real` — iroh transport interfaces / the real iroh-kmp
-    transport. `terminal-api` — the `TermScreen` engine.
+  - `core/` — dependency leaf (the Metro `AppScope`, `RecoveryPhrase`).
+  - api/real feature pairs: `network-api`/`network-real` (iroh transport
+    interfaces / the real iroh-kmp transport + peer stores),
+    `terminal-api`/`terminal-real` (the `TerminalEmulator` engine / terminal UI +
+    real sessions — see [`docs/terminal.md`](docs/terminal.md)),
+    `persistence-api`/`persistence-real` (message/profile stores), and
+    `notification-api`.
+  - standalone libs: `a2ui` (A2UI model/codec/renderer), `theme`, `ui-common`,
+    `markdown`, `link` (deeplink parsing + QR).
   - `mock-support/` — the fakes kept out of the real app: `FakeTransport` +
     `buildMockState()`, used only by the `-mock` apps.
-  - `shared/` — the assembler: hosts `AppGraph` + `AzulaState` (being decomposed),
-    the UI, and the still-embedded features.
+  - `shared/` — the assembler: `AppGraph`, the `AzulaState` coordinator and its
+    extracted services (decomposition **complete** — see `architecture-di.md`),
+    and the screen UI.
   - `android-app/`, `jvm-app/`, `ios-app/` — thin per-platform entry points that
     build the graph. Each has a sibling `-mock` app (`android-app-mock`, …) that
     injects the fakes for UI tests.
   - `design/`, `e2e/` — design mock notes and Maestro flows; the `./kotlin`
     wrapper and `project.yaml` live at this repo's root.
-- `azula-cli/` — Rust iroh server (the `azula` binary): `serve` (MCP client + PTY
-  shell) and `serve-mcp` (MCP server bridging an LLM to the app over iroh), plus
-  `pair`. Sources in `src/`, extra notes in `docs/`.
+- `azula-cli/` — Rust cargo workspace. The root `azula` package (lib + binary):
+  `serve` (MCP client + PTY shell), `serve-mcp` / `mcp` (HTTP / stdio MCP server
+  bridging an LLM to the app over iroh — see
+  [`docs/mcp-bridge.md`](docs/mcp-bridge.md)), plus `pair`/`devices`/`qr`. The
+  `demos/` member builds the separate `azula-demos` binary (`demo-ui`,
+  `blackjack`) so demo tools don't ship in the production server. Sources in
+  `src/`, extra notes in `docs/`.
 - `azula-site/` — Cloudflare Worker for azula.app (landing + session-link URLs +
   deeplink well-known files). Sources in `src/`.
 - `iroh-kmp/` — the iroh SDK for KMP (package `app.azula.iroh`): a minimal Rust +
@@ -84,9 +95,12 @@ durable version in this repo (`azula-docs`):** add or update a prose page under
 `docs/` and link it from the relevant CLAUDE.md. Treat "I'm about to overwrite the
 plan doc" as the trigger to update `azula-docs`. Areas that should each keep an
 up-to-date `docs/` page: the DI/module architecture (`docs/architecture-di.md`),
-the terminal emulator, identity backup (recovery phrase), the MCP↔iroh bridge
-(`serve-mcp` HTTP + the stdio `mcp` subcommand, its tools, and A2UI usage), and the
-A2UI component catalog + neon-glass design system (`docs/a2ui.md`).
+the terminal emulator (`docs/terminal.md`), identity backup / recovery phrase
+(`docs/identity.md`), the MCP↔iroh bridge — `serve-mcp` HTTP + the stdio `mcp`
+subcommand, its tools, and A2UI usage (`docs/mcp-bridge.md`), and the A2UI
+component catalog + neon-glass design system (`docs/a2ui.md`). Known tech debt
+and refactor candidates live in `docs/tech-debt.md` — check it before starting
+structural work, and delete entries you resolve.
 
 ## Conventions
 
