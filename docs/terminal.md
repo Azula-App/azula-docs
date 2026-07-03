@@ -116,6 +116,51 @@ printables (see `RawTerminalInput.kt`).
    to send a `Frame.Input` back on the current stream — server-directed, never
    predicted.
 
+## Terminal identity — host name + pwd
+
+`azula serve` announces the terminal it hosts so the app can label the
+conversation. Right after a connection is admitted (post-invite-gate, for known
+and invite-verified peers alike) and before any `Frame::Term` output, the
+server writes one `Frame::Profile { name, description }` on the send half
+(`term.rs`) — **per connection** (only the first bi stream, since the app keys a
+conversation by peer node id, so later streams reuse the same row).
+Defaults: `name` = the machine hostname (`gethostname`, trailing `.local`
+stripped, `"azula"` if empty); `description` = the shell's launch working
+directory (`current_dir()` at PTY spawn). Both are overridable with `azula serve
+--name <s> --description <s>`. The app needs no terminal-specific code:
+`receiveLoop` already routes any inbound `Frame.Profile` to
+`FrameDispatcher.applyProfile`, which names the conversation from `name` and
+shows `description` as the row's sub-line (the TERMINAL kind and `›_` glyph are
+preserved). The pwd is the *launch* directory, sent once — it does not follow
+`cd` (live cwd would need OSC 7 shell integration or PTY-cwd polling; not done).
+
+## Mobile view — status, keyboard, and the key row
+
+- **Status dot reflects real connection state.** `statusDotColor(online,
+  enabled, kind)` (`ui/Common.kt`) is green only when `online && enabled`,
+  muted-gray otherwise (LLM keeps its pink brand dot). Previously the resting
+  color for PEER/TERMINAL was the same green as online, so a disconnected
+  terminal looked connected. Live latency (`rttMs`, polled for all kinds incl.
+  terminals) renders next to it while online. The desktop and mobile lists both
+  render through the single `ConversationList` composable (`ui/Sidebar.kt`).
+- **The key row follows the soft keyboard.** `TerminalKeysBar` (the
+  Esc/Tab/^C/^D/^L/arrow accessory row) shows only while the soft keyboard is
+  up: `Chat.kt` gates it on `if (platformHasSoftKeyboard) rememberImeVisible()
+  else true`. Mobile hides it when the keyboard is dismissed; desktop (no soft
+  keyboard) always shows it for a live terminal. `platformHasSoftKeyboard` is a
+  **target** property (expect/actual in `Platform.kt`), not the width-based
+  Desktop/Mobile chrome split — a narrow JVM window still has a hardware
+  keyboard and no IME.
+- **Tap re-summons the keyboard.** A live terminal owns its own focus: `Chat.kt`
+  withholds the global tap-to-clear-focus for it, and `MobileRawTerminalInput`
+  has a `detectTapGestures { fr.requestFocus(); keyboard?.show() }`, so tapping
+  the surface brings the keyboard (and the key row) back after a dismiss.
+- **Scroll-to-tail without jitter.** `PrimaryScreen`'s auto-scroll snaps to the
+  bottom only when the user isn't actively scrolling AND is already pinned to
+  the last row (`!listState.isScrollInProgress && atBottom`), so a new emulator
+  frame (or an IME resize) no longer yanks the list mid-drag. Rows use a fixed
+  integer-pixel height so IME-driven resizes don't nudge them.
+
 ## Threading — the serial dispatcher (sharp edge)
 
 All `TerminalEmulator` mutation (`feed`/`resize`/`clear`, `predictor.onInput`) is
