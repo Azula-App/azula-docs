@@ -28,14 +28,17 @@ See `identity.md` (Restore flow).
 ## 3. Media feature: unverified-on-device surfaces (2026-07-03)
 
 The streamed-media feature (`media-transfer.md`) compiles on all targets and
-its state layer is unit-tested, but this environment has no simulator/display,
-so the following need a human pass on real devices: iOS picker delegate
-retention + `keyWindow` presentation on multi-scene apps, AVPlayer embedding,
-HEIC/HEVC type identifiers from PHPicker, attach-menu styling, fullscreen
-overlay hit-testing (scrim-tap vs player controls), and audio-bar UX. Desktop
-video stays poster + system-player by design. A future iroh-kmp
-`open_bi` sibling-stream FFI would let media fetches share the conversation's
-QUIC connection instead of dialing a new one.
+its state layer is unit-tested. **Verified on the iOS 26.5 simulator**
+(`e2e/ios-media.yaml`, Maestro): attach menu, PHPicker presentation (after
+fixing two real runtime bugs: nil deprecated `keyWindow` on scene-based apps,
+and presenting from Compose's transient popup-host VC — see
+`PickerInterop.ios.kt`), delegate + temp-file byte copy, image send, bubble
+render. Still needing a human/device pass: AVPlayer video embedding, the
+inline audio bar, HEIC/HEVC type identifiers from a real camera roll,
+fullscreen-overlay hit-testing vs player controls, and Android/desktop visual
+polish. Desktop video stays poster + system-player by design. A future
+iroh-kmp `open_bi` sibling-stream FFI would let media fetches share the
+conversation's QUIC connection instead of dialing a new one.
 
 ## 4. Identity key at rest is cleartext on iOS and desktop
 

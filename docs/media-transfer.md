@@ -99,9 +99,13 @@ UIKit presentation; PHPicker needs no Info.plist permission).
   import) — the fetch fails; re-sending re-offers.
 - Android backgrounding tears down the endpoint (pre-existing) — in-flight
   fetches die and resume on retry.
-- Not visually verified in this environment (no simulator/display): picker
-  delegate retention on iOS, AVPlayer embedding, attach-menu styling, overlay
-  hit-testing. See tech-debt.md.
+- Verified on the iOS 26.5 simulator via `azula-app/e2e/ios-media.yaml`
+  (Maestro): PHPicker → pick → preview → send → bubble. Pickers must present
+  ~400 ms AFTER the attach menu closes — Compose hosts popups in a transient
+  presented view controller, and presenting from it tears the picker down with
+  the menu (`PickerInterop.ios.kt`, `presentAfterPopupTeardown`). Still
+  unverified: AVPlayer embedding, inline audio bar, real-device HEIC. See
+  tech-debt.md.
 
 ## Testing
 
