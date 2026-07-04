@@ -97,12 +97,23 @@ printable chars, backspace, and left/right arrows are drawn immediately as
 dim+underlined overlay cells (`PredictedCell`, merged into
 `TermFrame.predictions` — the real grid is never touched); Enter, Tab, Ctrl-*,
 up/down, Home/End flush and pause prediction until server output resyncs it.
-Predictions are **disabled on the alternate screen** (TUIs echo
-unpredictably). `onServerOutput` reconciles: any non-SGR escape (cursor move,
+Homogeneous multi-char strings (all-printables or all-backspaces — what the
+smart-input diff emits) are predicted char-by-char; mixed strings still pause.
+`onServerOutput` reconciles: any non-SGR escape (cursor move,
 erase, alt-screen, OSC) flushes everything; otherwise each pending glyph is
 confirmed on a matching real cell, the set flushes on a mismatch, and a glyph
 is dropped after `timeoutMs` (1000ms default) if never echoed. Wrong guesses
 can't corrupt the screen — worst case a glyph flashes then snaps to truth.
+
+On the **alternate screen** (claude/vi), prediction runs in an extra-cautious
+mode instead of being disabled: printables and backspace only (never arrows —
+TUIs remap them), only when the server has been quiet for 200 ms
+(`altQuietMs` — a repaint storm suppresses prediction entirely), capped at 8
+pending overlays, flushed instantly on **any** server output (the TUI's own
+echo is the truth), with a 400 ms drop backstop and a flush on every
+primary↔alt flip. At a quiescent full-screen prompt (claude waiting for
+input — the common case) typing echoes locally instead of waiting a full
+round-trip; during redraw bursts the engine predicts nothing.
 
 ## Key encoding (`KeyBytes.kt`)
 
@@ -117,11 +128,12 @@ printables (see `RawTerminalInput.kt`).
 ## Data flow
 
 1. **Keystroke → bytes.** Desktop: `RawTerminalInput`'s focusable
-   `onPreviewKeyEvent` Box calls `keyEventToBytes`. Mobile:
-   `MobileRawTerminalInput`'s hidden `BasicTextField` uses a one-char sentinel to
-   detect inserts/deletes (a multi-char delta routes as a paste); a hardware
-   keyboard's non-printables still flow through `keyEventToBytes(includePrintable
-   = false)`.
+   `onPreviewKeyEvent` Box calls `keyEventToBytes`. Mobile: the smart-input
+   buffer (see the next section) diffs the hidden `BasicTextField`'s stable
+   text into backspace-runs + typed suffixes; a hardware keyboard's
+   non-printables still flow through `keyEventToBytes(includePrintable =
+   false)`, with hardware Backspace deliberately left unconsumed so it flows
+   through the field/diff path instead of double-sending.
 2. **App → predictor + wire.** `TerminalSession.terminalRaw` (in `AzulaState.kt`)
    feeds bytes to `termScreen.predictor?.onInput` on `terminalDispatcher` (local
    echo) and sends `Frame.Input(bytes)` over the conversation's `P2pStream` on
@@ -209,6 +221,114 @@ preserved). The pwd is the *launch* directory, sent once — it does not follow
   the last row (`!listState.isScrollInProgress && atBottom`), so a new emulator
   frame (or an IME resize) no longer yanks the list mid-drag. Rows use a fixed
   integer-pixel height so IME-driven resizes don't nudge them.
+
+## Smart input — the IME buffer (mobile)
+
+`MobileRawTerminalInput` (`terminal-real/.../RawTerminalInput.kt`) keeps a
+**stable text buffer** the soft keyboard composes into: field value =
+1-NBSP sentinel + the line typed since the last reset, `TextFieldValue` stored
+verbatim (composition/selection intact), `KeyboardType.Text` +
+`autoCorrect = true` + no auto-capitalization. This is what enables **swipe
+typing, autocorrect, and the suggestion strip** (Android + iOS QuickType) —
+and what fixed fast-typing character drops (the old model reset the field to
+the sentinel after *every* keystroke, racing the IME).
+
+- Each `onValueChange` is translated by a longest-common-prefix diff
+  (`terminal-api/.../InputDiff.kt`, pure + unit-tested) into a backspace-run
+  call and a typed-suffix call through `terminalRaw` — two *homogeneous* sends
+  so prediction handles each. Handles autocorrect fix-ups (`teh`→`the` = 2
+  backspaces + `he`), swiped words, and tapped suggestions.
+- An inserted chunk containing `\n`/`\r` or longer than 24 chars is treated as
+  a clipboard paste → `terminalPaste` (bracketed-paste semantics) + buffer
+  reset. `TerminalKeysBar` also has an explicit Paste key.
+- The buffer resets to the sentinel on: Enter, any non-printable key
+  (arrows/Tab/Ctrl-*/Esc — the cursor-at-end-of-line assumption dies),
+  focus loss / conversation switch, and any **server discontinuity** —
+  `TermFrame.discontinuityEpoch`, bumped by `feed()` when the cursor *row*
+  moved, the alt screen toggled, or the screen cleared (plain same-row echo
+  doesn't bump it).
+- **Honest limitation:** suggestions come from the stock keyboard's own
+  language model over the visible buffer — it suggests words, not flags or
+  paths; shell-aware completion would need a custom keyboard.
+- **Fallback:** Settings → "Terminal input: Smart / Raw (legacy)"
+  (`terminalSmartInput`, default on) switches back to the old
+  one-key-per-event sentinel implementation (`LegacyMobileRawTerminalInput`,
+  kept verbatim) — insurance against IME variance (Samsung keyboard,
+  SwiftKey, CJK IMEs are untested).
+
+## Selection & copy
+
+Rows are Canvas-drawn, so Compose text selection can't apply; selection is a
+cell-grid model instead (`terminal-api/.../TermSelection.kt`):
+
+- **Absolute line addressing.** `TerminalEmulator.totalScrolled` counts rows
+  ever pushed to scrollback (monotonic, never decremented on cap eviction);
+  scrollback row *i* = `totalScrolled − scrollback.size + i`, grid row *r* =
+  `totalScrolled + r`. A selection stays glued to its content while output
+  streams past.
+- **Gestures** (on the terminal surface): long-press selects the word under
+  the finger (haptic); drag-after-long-press extends; plain tap clears (and
+  skips the keyboard focus-reclaim for that tap). Highlight is a translucent
+  rect over-painted after the glyph segments (never part of the segment
+  cache key — no re-measure churn while dragging). A floating **Copy ·
+  Cancel** chip appears while a selection is active.
+- **Extraction**: `TermFrame.textInSelection` (first/last rows column-clipped
+  without splitting wide glyphs), `screenText()`, `allText()`; the header
+  overflow menu gains **Copy screen** / **Copy all** for terminal
+  conversations. Clipboard via `LocalClipboardManager`.
+- **Invalidation**: cleared on alt-screen toggle, `clear()`, conversation
+  switch, or when an endpoint is evicted past the 5000-row scrollback cap.
+
+## Scrollback & alt-screen scrolling
+
+- Primary screen: the LazyColumn scrolls the 5000-row scrollback; a **↓
+  jump-to-bottom chip** appears when detached from the tail (auto-pin
+  behavior unchanged).
+- Alternate screen (claude/vi — no scrollback by design): vertical swipe
+  (mobile) and mouse wheel (desktop, expect/actual
+  `AltScreenWheelScroll`) translate to arrow keys — one arrow per row of
+  travel, 3 per wheel notch, rate-capped, honoring DECCKM
+  (`applicationCursorKeys`), direction chosen to match `less`. Scroll-arrows
+  are suppressed while a selection is active.
+
+## Persistent sessions — attach, detach, replay
+
+`azula serve` keeps a terminal's PTY alive when the app disconnects and
+replays buffered output on re-attach (tmux-like). **Opt-in by the client**:
+persistence only engages when the app's first term-specific frame is
+`term_attach` — old apps get the exact legacy PTY-dies-with-stream behavior.
+
+Wire (newline-JSON frames, mirrored in `proto.rs`/`Protocol.kt`):
+
+```json
+{"type":"term_attach","session":null}          // client → server; null/absent = new session
+{"type":"term_session","session":"<id>","resumed":false}   // server → client
+{"type":"term_exit","session":"<id>","code":0} // shell exited
+```
+
+- **Server** (`term.rs`): a process-wide session registry (id → PTY handle +
+  256 KiB output ring buffer, newline-boundary eviction), split into
+  `session_core` (one task per PTY, feeds the ring + the current attachment,
+  survives stream loss) and per-stream attachments. Re-attach: owner-bound
+  (only the creating peer's node id may resume; anyone else silently gets a
+  fresh session), replies `resumed: true`, replays the ring as ordinary
+  `term` frames, then goes live; a `resize` arriving just after resume gets
+  the SIGWINCH nudge so full-screen TUIs repaint. Detached sessions are
+  reaped after `--session-ttl <minutes>` (default 60; `0` disables
+  persistence). Ctrl-C shutdown kills all sessions (parked PTY reader
+  threads would otherwise hang runtime teardown).
+- **App**: `ConversationState.termSessionId` (persisted in `ConversationDto`)
+  is sent in `term_attach` on every (re)wire; `term_session` stores it,
+  `term_exit` clears it. Terminals with a live session id are now eligible
+  for **auto-reconnect** (the old blanket terminal exclusion is conditional);
+  the chat bar distinguishes "disconnected — reconnecting…" (re-attachable)
+  from "session ended" + **New shell** (which clears the id so the server
+  mints a fresh session).
+- **Compat matrix**: old app → new CLI: no `term_attach` ⇒ exact legacy
+  behavior, no zombie shells. New app → old CLI: `term_attach` is ignored
+  (`Frame::Unknown`), no `term_session` ever arrives ⇒ app behaves exactly
+  as before (nothing waits on it). The accept gate (invitations) always runs
+  before attach is interpreted.
 
 ## Threading — the serial dispatcher (sharp edge)
 

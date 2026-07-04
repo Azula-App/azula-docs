@@ -78,3 +78,29 @@ tails:
   (the page shows a "signed" badge from the flag but doesn't verify the
   Ed25519 signature — it would need to parse the node id out of the postcard
   ticket in TS). App and CLI both verify; the page is advisory only.
+
+## 6. Terminal input/sessions follow-ups (2026-07-04)
+
+The smart-input / selection / scrollback / persistent-sessions work shipped
+(see `terminal.md`). Open tails:
+
+- **Settings live in `ProfileBook`.** `terminalSmartInput` is persisted by
+  piggybacking on the personas blob (there is no dedicated settings store).
+  Fine at one flag; extract a real `SettingsStore` before more accumulate.
+- **On-device IME pass pending.** Swipe typing, the suggestion strip,
+  autocorrect fix-ups, selection gesture feel, and the alt-screen scroll
+  *direction* (chosen to match `less`, one constant to flip) are verified by
+  unit tests + builds but not yet by hands on a phone (device was
+  fingerprint-locked). Only Pixel+Gboard and iOS-simulator paths were
+  targeted; Samsung keyboard / SwiftKey / CJK IMEs are untested — the
+  Smart/Raw input setting is the escape hatch.
+- **Mock terminal feeds before resize.** `FakeTerminalStream` dumps its
+  greeting at the emulator's default 80 cols before the window's resize
+  lands (resize doesn't reflow), which corrupts any width-sensitive replayed
+  content in mock-harness testing (bit one investigation already). Make the
+  mock delay its greeting until after the first `Resize`, or feed a
+  resize first.
+- **Mouse reporting (`?1000/1002/1003/1006`)** is still parsed-and-ignored —
+  claude's click/wheel interactions inside its TUI do nothing. Deferred from
+  the rendering fix; the alt-screen swipe→arrows mapping covers scrolling
+  only.
