@@ -200,6 +200,23 @@ printables (see `RawTerminalInput.kt`).
    replacing the old span-based cursor overlay. This is what keeps borders
    column-aligned and the cursor on its true cell even when claude's spinner/
    status glyphs (`✻ ● ✓ ➜`) fall back to a non-monospace font.
+
+   **Vertical fill for box-drawing/block glyphs.** `LINE_HEIGHT` (21sp) is
+   deliberately taller than `FONT_SIZE`'s (12.5sp) natural glyph line box —
+   roomy prose spacing. Ordinary text is vertically centered in the cell
+   (`(rowHeightPx - layout.height) / 2`), which is fine for prose but leaves a
+   background-colored gap above and below any glyph meant to tile edge-to-edge
+   with the same glyph in the row above/below — DEC box-drawing (`0x2500–
+   257F`) and Unicode Block Elements (`0x2580–259F`, half/quadrant/eighth
+   blocks, e.g. claude's crab banner's `▐▛███▜▌`) — showing as a visible seam
+   between contiguous block/border rows. `isFullCellGlyph` flags those two
+   (contiguous) ranges; `buildRowSegments` tags matching segments
+   (`RowSegment.fillCell`, never coalesced together with ordinary text even
+   when otherwise same-style/mono-safe) and `GridRow` paints them with a
+   vertical `scale` (pivot at the cell's top edge) that stretches the glyph's
+   own line box up to the full `rowHeightPx` instead of centering it — flush
+   top-to-bottom, and hence flush against the next row's copy of the same
+   glyph. Ordinary text is untouched (still centered, still roomy).
 7. Device queries (DA/DSR) go the other way: `onResponse` is wired in `wireConv`
    to send a `Frame.Input` back on the current stream — server-directed, never
    predicted.
