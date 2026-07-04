@@ -29,13 +29,15 @@ A VT-100/xterm state machine covering enough to run vi/top/htop/less/nano:
 cursor addressing, the alternate screen (`?1047`/`?1049`), scroll regions
 (DECSTBM), insert/delete char/line, full SGR (attrs + ANSI16/xterm256/truecolor
 fg+bg, `;`- and `:`-separated forms), DEC special graphics (box drawing),
-DECSC/DECRC, device queries (DA `CSI c`, DSR `CSI 6n`), tab stops, and
-scrollback (5000-row cap, primary screen only — `SCROLLBACK_CAP`).
+DECSC/DECRC, device queries (DA `CSI c`, DSR `CSI 6n`), an OSC 11 background-
+color reply (see below), tab stops, and scrollback (5000-row cap, primary
+screen only — `SCROLLBACK_CAP`).
 
 - **`Row`** — parallel `IntArray`/`LongArray`/`IntArray` for code point/fg/bg/
   flags, plus a `gen` counter so the renderer can skip unchanged rows.
   `ATTR_WIDE_LEAD`/`ATTR_WIDE_TRAIL` mark double-width glyphs (CJK/emoji, see
-  `charWidth`).
+  `charWidth` below); zero-width glyphs (combining marks, variation selectors)
+  consume no cell at all.
 - **`ScreenBuffer`** (private) — one screen's lines + cursor + scroll region +
   saved-cursor slot; the emulator holds two (`primary`, `alt`) plus an `active`
   pointer swapped by `switchScreen`.
@@ -51,6 +53,41 @@ scrollback (5000-row cap, primary screen only — `SCROLLBACK_CAP`).
 - `resize(cols, rows)` is top-anchored: preserves overlapping content, clamps
   the cursor, resets tab stops — used both for viewport-size changes and
   server-acked size.
+
+### Glyph width (`charWidth`)
+
+A compact, hand-commented wcwidth-ish table (`TerminalEmulator.kt`, private
+companion) — not a full Unicode wcwidth dump, just the ranges real TUIs (claude
+included) actually emit:
+
+- **0 columns** (`isZeroWidth`): combining marks (`0x0300–036F` and friends),
+  variation selectors incl. VS16 `0xFE0F` (emoji presentation), ZWJ `0x200D`,
+  and other zero-width/default-ignorable points (`0x200B`, `0xFEFF`). `printChar`
+  drops these outright (no grapheme-clustering onto the previous cell — just
+  don't reserve or clobber a column) rather than modeling real combining
+  behavior.
+- **2 columns**: East-Asian wide/fullwidth + CJK/Hangul/Yi (as before), plus
+  Misc Symbols & Dingbats `0x2600–27BF` (claude's `✻ ✓ ➜`-style spinner/status
+  glyphs), the Geometric Shapes block `0x25A0–25FF` (`●` bullets — deliberately
+  *not* the box-drawing block `0x2500–257F`, which stays 1-cell since JetBrains
+  Mono renders it natively), and regional-indicator flag letters
+  `0x1F1E6–1F1FF`.
+- **1 column**: everything else, ASCII included.
+
+`printChar` (`~653`) reserves columns consistently with this table — `w == 0`
+returns before touching the grid at all; `w == 2` sets `ATTR_WIDE_LEAD` on the
+glyph's cell and `ATTR_WIDE_TRAIL` (a skipped spacer) on the next — so the
+renderer's column math and the emulator's column math can never disagree.
+
+### OSC 11 — background-color query
+
+`dispatchOsc()` answers a `CSI ] 11 ; ? BEL` or `… ST` query (used by TUIs,
+claude included, to detect light/dark background) with `ESC]11;rgb:RRRR/GGGG/
+BBBB ESC\`, mirroring `AzulaColors.bg1`'s RGB as a plain constant (terminal-api
+has no dependency on the `theme` module, so the color is duplicated, not
+imported — same pattern as the ANSI16 palette). All other OSC (title `0`/`1`,
+cwd `7`) stays swallowed, as before. Answering keeps claude's theme-detection
+handshake from timing out instead of guessing/defaulting.
 
 ## Prediction (`PredictionEngine`)
 
@@ -107,11 +144,23 @@ printables (see `RawTerminalInput.kt`).
 5. **Server → app → grid.** `ConnectService.applyFrame`'s `Frame.Term` arm calls
    `cs.termScreen.feed(line)` on `terminalDispatcher`; `feed()` parses, calls
    `predictor?.onServerOutput` to reconcile, and publishes a new `TermFrame`.
-6. **Grid → Compose.** `TerminalView` reads `emu.frame` (the subscription point)
-   and renders `AltScreen` (fixed grid) or `PrimaryScreen` (a `LazyColumn` of
-   scrollback + grid, auto-stuck to bottom unless scrolled up). `buildRow`
-   coalesces same-style runs into `AnnotatedString` spans for SGR attrs, the
-   block cursor, and predicted glyphs.
+6. **Grid → Compose — a hard monospace grid.** `TerminalView` reads `emu.frame`
+   (the subscription point) and renders `AltScreen` (fixed grid) or
+   `PrimaryScreen` (a `LazyColumn` of scrollback + grid, auto-stuck to bottom
+   unless scrolled up). Each row is a `Canvas`, not a single flowed `Text`:
+   `buildRowSegments` walks the row and, for each cell, resolves fg/bg/attrs
+   (`cellAttrs`) and either extends a same-style run of `isMonoSafe` cells
+   (plain ASCII/Latin + DEC box-drawing — glyphs JetBrains Mono renders
+   natively at exactly `cellW`) or isolates it as its own segment (wide, CJK,
+   symbol/emoji, predicted, or the cursor cell). Every segment is pre-measured
+   with `TextMeasurer` and painted at `x = startCol * cellW` — **never**
+   accumulated from the glyphs before it — so a mis-widthed fallback-font glyph
+   can smear at most its own coalesced run, never shift anything in a later run
+   or row. The cursor is a filled rect at its column (`2 * cellW` if the
+   underlying cell is a wide lead) with the glyph redrawn on top in `TERM_BG`,
+   replacing the old span-based cursor overlay. This is what keeps borders
+   column-aligned and the cursor on its true cell even when claude's spinner/
+   status glyphs (`✻ ● ✓ ➜`) fall back to a non-monospace font.
 7. Device queries (DA/DSR) go the other way: `onResponse` is wired in `wireConv`
    to send a `Frame.Input` back on the current stream — server-directed, never
    predicted.
@@ -179,9 +228,13 @@ safe from any thread since it's immutable once built.
   printing/wrap/CRLF, split-escape resumption, SGR (basic/256/truecolor, both
   separators), cursor addressing/erase/insert-delete, scroll regions,
   scrollback + cap, alt-screen isolation, mode flags, DEC box drawing, device
-  queries, RIS reset, resize, and the full `PredictionEngine` matrix (confirm,
-  mismatch flush, alt-screen suppression, Enter flush, disruptive-output flush,
-  timeout flush).
+  queries, RIS reset, resize, glyph width (ASCII/CJK/dingbat/geometric-shape
+  wide, box-drawing exempted, VS16 + combining-mark zero-width, and a
+  LEAD/TRAIL layout assertion), an OSC 11 query (both BEL- and ST-terminated)
+  replying with the background color, and the full `PredictionEngine` matrix
+  (confirm, mismatch flush, alt-screen suppression, Enter flush,
+  disruptive-output flush, timeout flush). Run (all targets, not just jvm —
+  the emulator is pure Kotlin/Multiplatform): `./kotlin test -m terminal-api`.
 - **`azula-cli/src/term.rs`** `#[cfg(test)]` — real in-process iroh integration
   tests: `term_handler_end_to_end` (two local endpoints, `echo <marker>`,
   asserts the marker returns as `Frame::Term` — proves PTY-spawn → bridge →
