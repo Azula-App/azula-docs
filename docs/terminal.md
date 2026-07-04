@@ -41,6 +41,18 @@ screen only — `SCROLLBACK_CAP`).
 - **`ScreenBuffer`** (private) — one screen's lines + cursor + scroll region +
   saved-cursor slot; the emulator holds two (`primary`, `alt`) plus an `active`
   pointer swapped by `switchScreen`.
+- **CSI `u` is overloaded** — bare `CSI u` is the classic ANSI.SYS-style
+  restore-cursor (paired with `s`/save), but `CSI < u` / `CSI > Ps u` /
+  `CSI = Ps ; Pu u` / `CSI ? u` (marker-prefixed) are the Kitty keyboard
+  protocol (pop/push/set/query keyboard flags) — same final byte, unrelated
+  meaning. `csiDispatch` only calls `restoreCursor()` when there's no marker;
+  the Kitty forms are parsed and ignored (protocol not modeled). Dispatching
+  all of them to `restoreCursor()` was a real bug: claude's CLI sends `CSI < u`
+  once right after painting the trust-confirmation dialog, which snapped the
+  cursor back to wherever `DECSC` last saved (often row 0) — corrupting the
+  row anchor for every subsequent relative-cursor redraw and making
+  arrow-key-driven menu redraws land option text near the top of the screen
+  instead of at the menu rows.
 - **`TermFrame`** — the immutable render snapshot (cols/rows, scrollback, grid,
   cursor, altScreen, prediction overlays). `TerminalEmulator.frame` is a
   `mutableStateOf<TermFrame>` — the **only** Compose-observable state; the
