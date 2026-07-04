@@ -78,13 +78,28 @@ included) actually emit:
   drops these outright (no grapheme-clustering onto the previous cell — just
   don't reserve or clobber a column) rather than modeling real combining
   behavior.
-- **2 columns**: East-Asian wide/fullwidth + CJK/Hangul/Yi (as before), plus
-  Misc Symbols & Dingbats `0x2600–27BF` (claude's `✻ ✓ ➜`-style spinner/status
-  glyphs), the Geometric Shapes block `0x25A0–25FF` (`●` bullets — deliberately
-  *not* the box-drawing block `0x2500–257F`, which stays 1-cell since JetBrains
-  Mono renders it natively), and regional-indicator flag letters
-  `0x1F1E6–1F1FF`.
-- **1 column**: everything else, ASCII included.
+- **2 columns**: East-Asian wide/fullwidth + CJK/Hangul/Yi, emoji/symbols
+  `0x1F300–1FAFF`, and regional-indicator flag letters `0x1F1E6–1F1FF`.
+- **1 column**: everything else, ASCII included — **notably** Misc Symbols &
+  Dingbats `0x2600–27BF` (claude's `✻ ✢ ✳ ✓ ➜`-style spinner/status glyphs, and
+  critically `❯`, claude's prompt chevron) and the Geometric Shapes block
+  `0x25A0–25FF` (`●` bullets). A prior version of this table marked both
+  ranges double-width to paper over a *visual* glyph-rendering mismatch, but
+  real terminals (verified against tmux, which defers to the system's
+  `wcwidth`) advance the cursor only one column for these — the box-drawing
+  block `0x2500–257F` was already correctly exempted for the same reason
+  (JetBrains Mono renders it natively at 1 cell). Treating them as wide
+  desyncs the emulator's column accounting from what claude itself assumes:
+  any line claude pads to the full terminal width (e.g. a re-echoed `❯ <cmd>`
+  prompt row inside a temporarily narrowed DECSTBM scroll region — the pattern
+  used for arrow-key history recall and the slash-command menu) would fill one
+  column short on a real terminal but exactly hit the last column here,
+  firing deferred autowrap a character early and inserting a phantom row that
+  cascades into every subsequent absolute-cursor-addressed line in that
+  redraw — this is what made those redraws "render in unexpected places."
+  The genuine visual mismatch (fallback-font glyphs rendering wider than one
+  cell) is handled by the renderer instead, which never assumes cumulative
+  column advance from earlier glyphs (see the "Grid → Compose" section below).
 
 `printChar` (`~653`) reserves columns consistently with this table — `w == 0`
 returns before touching the grid at all; `w == 2` sets `ATTR_WIDE_LEAD` on the
@@ -360,12 +375,15 @@ safe from any thread since it's immutable once built.
   printing/wrap/CRLF, split-escape resumption, SGR (basic/256/truecolor, both
   separators), cursor addressing/erase/insert-delete, scroll regions,
   scrollback + cap, alt-screen isolation, mode flags, DEC box drawing, device
-  queries, RIS reset, resize, glyph width (ASCII/CJK/dingbat/geometric-shape
-  wide, box-drawing exempted, VS16 + combining-mark zero-width, and a
-  LEAD/TRAIL layout assertion), an OSC 11 query (both BEL- and ST-terminated)
-  replying with the background color, and the full `PredictionEngine` matrix
-  (confirm, mismatch flush, alt-screen suppression, Enter flush,
-  disruptive-output flush, timeout flush). Run (all targets, not just jvm —
+  queries, RIS reset, resize, glyph width (ASCII/CJK wide; dingbat/
+  geometric-shape/box-drawing single-width; VS16 + combining-mark zero-width;
+  a LEAD/TRAIL layout assertion; and a regression pinning claude's `❯` prompt
+  chevron to single-width inside a DECSTBM-scrolled redraw, the real bug
+  behind arrow-key-triggered redraws landing on the wrong row), an OSC 11
+  query (both BEL- and ST-terminated) replying with the background color, and
+  the full `PredictionEngine` matrix (confirm, mismatch flush, alt-screen
+  suppression, Enter flush, disruptive-output flush, timeout flush). Run (all
+  targets, not just jvm —
   the emulator is pure Kotlin/Multiplatform): `./kotlin test -m terminal-api`.
 - **`azula-cli/src/term.rs`** `#[cfg(test)]` — real in-process iroh integration
   tests: `term_handler_end_to_end` (two local endpoints, `echo <marker>`,
