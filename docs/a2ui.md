@@ -16,7 +16,11 @@ in code.
 - **Tokens:** `azula-app/a2ui/.../A2uiTokens.kt` — the semantic design tokens the
   renderer draws from (colors, shape scale, gradient). Brand colors are shared with
   `theme/.../Color.kt` (`AzulaColors`); catalog-only values (`surfaceAlt`, `muted`,
-  `accent`) live there too.
+  `accent`) live there too. `A2uiTokens` is `public` (not `internal`) — `shared`
+  exports `../a2ui`, so it's the app-wide chat design source, not just A2UI's; see
+  Phase 4 of the chat-consolidation plan (`azula-docs/docs/architecture-di.md`
+  isn't the plan doc, but the intent is `Chat.kt`'s bubbles/input/chrome read the
+  same tokens instead of separate `AzulaColors` literals).
 - **Markdown:** `azula-app/a2ui/.../A2uiMarkdown.kt` — the small Markdown subset used by `Text`.
 - **Model / binding / surface state:** `A2uiModel.kt`, `A2uiBinding.kt`,
   `A2uiSurface.kt`, `JsonPointer.kt` in the same module.
@@ -39,14 +43,24 @@ Shape scale: `rSm` 7dp · `rMd` 9dp · `rLg` 12dp · `rXl` 16dp · `rPill` 50%.
 Type: `Fonts.ui` (Space Grotesk — currently the system sans-serif fallback) for
 content, `Fonts.mono` (JetBrains Mono, bundled) for code/labels/values.
 
+Two chat-only shapes ride alongside the shape scale: `rBubbleMe` (15/15/5/15dp)
+and `rBubbleThem` (15/15/15/5dp) — the asymmetric "tail" corners for
+`MessageBubble`/`ThinkingIndicator` in `shared/.../ui/Chat.kt`. They're not part
+of the agent-facing A2UI wire catalog (no `render_ui`/`tools.rs` change), just
+app-wide chat chrome that now lives on `A2uiTokens` per Phase 4 of the chat
+consolidation (see below).
+
 ## Component catalog
 
 Content: **Text** (Markdown: `###` headings, `-` bullets, `**bold**`, `*italic*`,
 `` `code` ``; variants h1–h6/body/caption), **Image** (size presets
 icon/avatar/smallFeature/mediumFeature(default)/largeFeature/header; `fit`;
 data-URI only), **Icon** (vector line icons bolt/terminal/lock/link/chat/controls +
-glyph fallback; inherits text color), **Video** / **AudioPlayer** (styled mock
-players — play button + scrubber / waveform; no live playback).
+glyph fallback; inherits text color), **Video** (styled mock player — play
+button + scrubber; no live playback), **AudioPlayer** (shares the chat waveform
+bar, `A2uiAudioBar` — a `data:audio/...;base64,...` `url` plays for real,
+play/pause + seekable waveform; a remote http `url` or no `url` falls back to
+the same static mock look as before).
 
 Layout: **Row** / **Column** / **List** (invisible containers; justify/align;
 List scrolls when horizontal), **Card** (filled surface, or `variant:"nested"` →

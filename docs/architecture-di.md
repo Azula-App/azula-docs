@@ -167,7 +167,8 @@ Feature services:
   conversation's own stream, so it needs no transport reference).
 - **`MediaService`** — the media-attachment lifecycle: blob-backed send/offer,
   the resumable `azula/media/0` fetch protocol (both sides), auto-download
-  policy, and blob read helpers for the UI. See
+  policy, blob read helpers for the UI, and auto-export of received media to
+  user-visible device storage (the nullable `MediaExporter` seam). See
   [`media-transfer.md`](media-transfer.md).
 - **`FrameDispatcher`** — the inbound-frame reaction core: `applyFrame` (fanning
   Chat/Term/Thinking/A2ui/Token frames to ChatService/terminal/SurfaceStore),

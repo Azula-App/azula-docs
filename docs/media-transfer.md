@@ -54,6 +54,37 @@ disk truth (`sizeOnDisk` vs `size` → Complete / Downloading-paused / Offered),
 so killing the app mid-download restarts as "tap to resume" with no special
 recovery code.
 
+## Auto-export received media to device storage
+
+Every **received** blob is auto-saved to user-visible storage the moment it
+reaches `TransferState.Complete`, so the user can re-view/share it outside Azula.
+The seam is `MediaExporter` (`persistence-api/.../MediaExporter.kt`):
+`suspend fun export(path, name, mime): String?` — mime-string based (no `MediaKind`
+in the signature) so `shared` needs only a mime; the impl classifies
+image/video/audio/other itself and returns a display location ("Photos",
+"Downloads/foo.pdf") or null. It's a nullable `@Provides` on `AppGraph.Factory`
+(null = no export, e.g. the `-mock` apps), injected into `MediaService`.
+
+Per-platform actuals (`persistence-real`, + the Android app module for the
+`Context`): **JVM** copies into `~/Downloads/Azula/` (collision-safe `name (1).ext`);
+**Android** (`AndroidMediaExporter(context)`) does scoped-storage `MediaStore`
+inserts — image/video → gallery (`Pictures`/`Movies/Azula`), audio/other →
+`Download/Azula` — with an API 26–28 `getExternalStoragePublicDirectory` +
+`MediaScannerConnection` fallback (needs `WRITE_EXTERNAL_STORAGE maxSdkVersion=28`);
+**iOS** adds image/video to the Photos library via `PHAssetCreationRequest`
+(`NSPhotoLibraryAddUsageDescription`), audio/other into `Documents/Azula/`
+(`UIFileSharingEnabled` + `LSSupportsOpeningDocumentsInPlace` → visible in
+Files.app). Auto-save is prompt-free apart from the one-time iOS Photos grant.
+
+Export fires **exactly once, received-only**, at the two Complete transitions in
+`MediaService`: `runFetch`'s success branch (streamed PEER media — sends never
+call `runFetch`) and `ingestLocalBlob` when `role == Role.THEM` (legacy/LLM files
+from `ConnectService.receiveLoop`'s FileBegin branch — not re-triggered in
+ConnectService, to avoid double-export). It's fire-and-forget on the service scope
+and best-effort: a null exporter, a missing on-disk path (`blobPath == null`, e.g.
+the in-memory mock store), or a failure are all silently ignored and never block
+or fail the transfer. Sends (`Role.ME`) are structurally excluded.
+
 ## State machine + services
 
 `Attachment` (core, Compose-free) carries `kind: MediaKind`, `blobId`,
