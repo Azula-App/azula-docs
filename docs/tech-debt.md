@@ -133,26 +133,33 @@ tolerate a post-`PASSED` non-zero sim exit), and raise/soften the E2E
 The unified-chat + media + share + image-viewer + names + invite-notification
 work (Phases 0–7 of the consolidation plan) is build- and unit-test-verified on
 all targets (incl. a real `xcodebuild` of `ios-app` + the new `AzulaShare`
-extension). A physical Pixel 6 Pro pass **verified**: the unified neon-glass chat
-(PEER and LLM look identical, attach menu offers Photo/Video/Audio/File on every
-conv), the full-screen image viewer's open + tap/back dismiss, the OS
-share-sheet → "Share to…" conversation-picker → composer-prefill flow, and
-per-conversation local rename. iOS mock app builds/launches/renders on a fresh
-iOS 26.5 simulator.
+extension).
 
-**Still needs a hardware/human pass** (couldn't be driven this session): the
-image viewer's pinch-zoom / pan / double-tap / swipe-between-images (only
-open+dismiss was driven — adb can't easily do multi-touch); inbound-audio
-waveform playback for a *real received* MCP/LLM file (the mock has no filesystem
-`blobPath` and no inbound-media injection); auto-export landing in
-gallery/Downloads/Photos/Files (needs a real second peer sending media — incl.
-the Android API 26–28 `WRITE_EXTERNAL_STORAGE` fallback and the first-run iOS
-Photos add-permission prompt); and the connection-request notification firing +
-tap-routing on Android and iOS (real-app-only path, needs a real inbound
-stranger). **iOS release prerequisite:** real Apple Developer provisioning for
-both bundle ids (`ios-app` + `ios-app.AzulaShare`) with the App Groups
-capability and `group.app.azula` registered (simulator builds use ad-hoc
-signing).
+**Verified on hardware.** A physical Pixel 6 Pro pass confirmed the unified
+neon-glass chat (PEER and LLM look identical, attach menu offers
+Photo/Video/Audio/File on every conv), the full-screen image viewer's open +
+tap/back dismiss, the OS share-sheet → "Share to…" conversation-picker →
+composer-prefill flow, and per-conversation local rename. A **Pixel ↔ Android
+emulator end-to-end test over the real Iroh network** then confirmed: pairing
+via mint-invite → redeem → accept-review-sheet, a **direct e2e-encrypted
+connection** (`direct · 10–33ms · e2e`, holepunched not relayed), **bidirectional
+text delivery**, **image transfer** rendered inline on the receiver, and
+**Phase-2 auto-export** of the received image to `/sdcard/Pictures/Azula/`
+(byte-exact, ~1 min after transfer). No crashes on either device. iOS mock app
+builds/launches/renders on a fresh iOS 26.5 simulator.
+
+**Still needs a pass** (couldn't be driven this session): the image viewer's
+pinch-zoom / pan / double-tap / swipe-between-images (only open+dismiss was
+driven — adb can't easily do multi-touch); inbound-**audio** waveform playback
+for a *real received* file (the real-peer test exercised image transfer, not
+audio; the mock has no filesystem `blobPath`); the connection-request **system
+notification** firing + tap-routing (the *in-app* accept flow is verified, but
+the notification only posts when backgrounded, `!foreground()`, so the posted
+notification + tap wasn't exercised); and the whole iOS side on a device (Share
+Extension real flow, Photos/Files auto-export, `UNUserNotificationCenter`).
+**iOS release prerequisite:** real Apple Developer provisioning for both bundle
+ids (`ios-app` + `ios-app.AzulaShare`) with the App Groups capability and
+`group.app.azula` registered (simulator builds use ad-hoc signing).
 
 Note on a mock-only symptom that was fixed: audio/file attachments showed a
 spurious "blob missing" Failed/retry in `-mock` builds because
