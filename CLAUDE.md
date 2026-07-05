@@ -55,8 +55,15 @@ versions, and deploys on its own.
   consumes it (jvm + android) instead of `computer.iroh:iroh`; this is what makes
   real iroh work on Android. See `azula-docs/docs/iroh-kmp.md`.
 - `azula-docs/` — cross-repo documentation and this working agreement. Holds the
-  shared CLAUDE files and the prose docs (`docs/`) that aren't tied to a single
-  repo's build.
+  shared CLAUDE/AGENTS working-agreement files and the prose docs (`docs/`) that
+  aren't tied to a single repo's build.
+
+## Agent mirrors
+
+Claude remains the canonical setup, but compatible coding agents should read the
+same agreement through symlinks: `AGENTS.md -> CLAUDE.md` where a `CLAUDE.md`
+exists, and `.agents -> .claude` where a `.claude/` directory exists. Keep those
+mirrors as symlinks rather than separate copies so the instructions cannot drift.
 
 ## Build / verify
 
@@ -92,9 +99,10 @@ Plan files (`~/.claude/plans/…`) are **ephemeral** — they get overwritten on
 next task, so design must not live only there. **Whenever you do design or
 architecture work — i.e. whenever you write or overwrite a plan doc — capture the
 durable version in this repo (`azula-docs`):** add or update a prose page under
-`docs/` and link it from the relevant CLAUDE.md. Treat "I'm about to overwrite the
-plan doc" as the trigger to update `azula-docs`. Areas that should each keep an
-up-to-date `docs/` page: the DI/module architecture (`docs/architecture-di.md`),
+`docs/` and link it from the relevant working-agreement file. Treat "I'm about to
+overwrite the plan doc" as the trigger to update `azula-docs`. Areas that should
+each keep an up-to-date `docs/` page: the DI/module architecture
+(`docs/architecture-di.md`),
 the terminal emulator (`docs/terminal.md`), identity backup / recovery phrase
 (`docs/identity.md`), the MCP↔iroh bridge — `serve-mcp` HTTP + the stdio `mcp`
 subcommand, its tools, and A2UI usage (`docs/mcp-bridge.md`), streamed media

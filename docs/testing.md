@@ -72,6 +72,6 @@ Adding a test? Pick the **lowest** layer that can catch the failure:
 - `iroh-kmp` — `cargo check`/`cargo test` for the crate; consumers are
   exercised through azula-app's suites.
 
-The project's Claude hooks (`.claude/` in the parent directory, per-machine)
-auto-run the fast suites on edit and queue `./kotlin check` per touched
-module at end of turn.
+The project's Claude hooks (`.claude/` in the parent directory, per-machine;
+mirrored for compatible agents as `.agents -> .claude`) auto-run the fast suites
+on edit and queue `./kotlin check` per touched module at end of turn.
