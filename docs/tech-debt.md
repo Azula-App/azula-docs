@@ -25,7 +25,7 @@ themselves aren't. Also: `e2e/ios.yaml` never exercises the connect flow
   device. Harmless but worth deciding intentionally.
 See `identity.md` (Restore flow).
 
-## 3. Media feature: unverified-on-device surfaces (2026-07-03)
+## 3. Media feature: remaining unverified surfaces (2026-07-04)
 
 The streamed-media feature (`media-transfer.md`) compiles on all targets and
 its state layer is unit-tested. **Verified on the iOS 26.5 simulator**
@@ -33,20 +33,42 @@ its state layer is unit-tested. **Verified on the iOS 26.5 simulator**
 fixing two real runtime bugs: nil deprecated `keyWindow` on scene-based apps,
 and presenting from Compose's transient popup-host VC — see
 `PickerInterop.ios.kt`), delegate + temp-file byte copy, image send, bubble
-render. Still needing a human/device pass: AVPlayer video embedding, the
-inline audio bar, HEIC/HEVC type identifiers from a real camera roll,
-fullscreen-overlay hit-testing vs player controls, and Android/desktop visual
-polish. Desktop video stays poster + system-player by design. A future
-iroh-kmp `open_bi` sibling-stream FFI would let media fetches share the
-conversation's QUIC connection instead of dialing a new one.
+render. **Verified on hardware**: a real Pixel↔Android-emulator pass over the
+real Iroh network confirmed image send/receive, inline bubble render, the
+fullscreen viewer's open/dismiss, and byte-exact auto-export to
+`/sdcard/Pictures/Azula/` — see §8 for the full on-device rundown (don't
+duplicate here). Still needing a human/device pass: AVPlayer video embedding
+on iOS, inline-audio playback for a real received *audio* file, HEIC/HEVC type
+identifiers from a real camera roll, the viewer's pinch-zoom/pan/swipe (only
+open+dismiss was driven — also tracked in §8), and desktop visual polish.
+Desktop video stays poster + system-player by design. A future iroh-kmp
+`open_bi` sibling-stream FFI would let media fetches share the conversation's
+QUIC connection instead of dialing a new one.
 
-## 4. Identity key at rest is cleartext on iOS and desktop
+## 4. Identity key at rest — encrypted everywhere (2026-07-05); one gap
 
-Only Android encrypts the secret key (Keystore-backed
-EncryptedSharedPreferences). iOS stores it in `NSUserDefaults` and desktop in
-a plain file `~/.azula/endpoint.key`. Moving iOS to the Keychain (and desktop
-to the OS keystore where available) would close the gap. See `identity.md`
-(Security considerations).
+Fixed: the secret key is now encrypted at rest on all platforms. Android
+(Keystore-backed `EncryptedSharedPreferences`, unchanged); **iOS** moved from
+`NSUserDefaults` to the Keychain; **desktop** moved from plaintext
+`~/.azula/endpoint.key` to the macOS login Keychain (service
+`app.azula.identity`, account `endpoint_key`, via the `security` CLI with a 5 s
+timeout). Migration is safe: `load()` reads the Keychain first, else reads any
+legacy plaintext file, writes it into the Keychain, reads it back to verify,
+and only then deletes the plaintext — never a window with no copy; `save()`
+writes the Keychain first and only falls back to a plaintext file if that
+fails. Non-macOS desktop keeps the `FileSecretKeyStore`. Verified: unit tests
+(round-trip/overwrite/migration/absent) + an independent `security` round-trip;
+this machine's real key is already Keychain-resident with no plaintext left.
+See `identity.md` (Security considerations).
+
+Open tail — **locked-Keychain-at-launch can mint a new identity.** On desktop,
+`MacKeychainSecretKeyStore.load()` can't distinguish a clean Keychain miss (no
+entry) from a transient access failure (login keychain locked / `security`
+error): both return null, and `bind()` then mints a *new* identity, silently
+changing the node id, when the only copy of the key is in the Keychain.
+Low-probability for a GUI app (the login keychain is unlocked during a session),
+but worth hardening — surface/propagate an explicit "Keychain unavailable"
+error (vs. a clean miss) so bind fails loudly instead of orphaning the identity.
 
 ## 5. Invitations transition + follow-ups (2026-07-03)
 
@@ -68,12 +90,18 @@ tails:
   logic is covered at the service layer (`StrangerGateTest`,
   `InviteServiceTest`); a UI test needs a fake transport that can emit an
   arbitrary inbound `IncomingConnection`.
-- **`iroh-kmp` publish gotcha.** `./gradlew publishToMavenLocal` pulls in
-  `cargoBuildLinuxArm64Debug`/`…X64`/`MinGWX64` even though no Linux/Windows
-  KMP variant is published; on a Mac these fail (`aarch64-linux-gnu-gcc` etc.
-  not installed) and fail the whole publish. Work around with
-  `-x cargoBuildLinux… -x cargoBuildMinGW…`; the durable fix is to gate those
-  cargo tasks off on hosts lacking the cross-toolchain in `build.gradle.kts`.
+- **`iroh-kmp` publish gotcha — fixed (2026-07-04).** `./gradlew
+  publishToMavenLocal` used to pull in `cargoBuildLinuxArm64Debug`/`…X64`/
+  `MinGWX64` even though no Linux/Windows KMP variant is published, failing
+  the whole publish on a Mac. `iroh-kmp/build.gradle.kts` now disables those
+  `cargoBuild*` tasks outside their native host (`enabled =
+  GobleyHost.Platform.Linux.isCurrent` / `…Windows.isCurrent`, next to the
+  existing iOS host gate), so `-x cargoBuildLinux… -x cargoBuildMinGW…` is no
+  longer needed. Verified at the config/task level (the six tasks now report
+  `SKIPPED` with no cargo invocation, and `publishToMavenLocal --dry-run`
+  configures cleanly); a full `publishToMavenLocal` (recompiles the crate for
+  every Apple/Android target) wasn't run in this session — heavy, and not
+  needed to confirm the gating.
 - **Worker-side signature verification** on the `/i/` invite page is not done
   (the page shows a "signed" badge from the flag but doesn't verify the
   Ed25519 signature — it would need to parse the node id out of the postcard
