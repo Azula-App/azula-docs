@@ -61,14 +61,16 @@ fails. Non-macOS desktop keeps the `FileSecretKeyStore`. Verified: unit tests
 this machine's real key is already Keychain-resident with no plaintext left.
 See `identity.md` (Security considerations).
 
-Open tail — **locked-Keychain-at-launch can mint a new identity.** On desktop,
-`MacKeychainSecretKeyStore.load()` can't distinguish a clean Keychain miss (no
-entry) from a transient access failure (login keychain locked / `security`
-error): both return null, and `bind()` then mints a *new* identity, silently
-changing the node id, when the only copy of the key is in the Keychain.
-Low-probability for a GUI app (the login keychain is unlocked during a session),
-but worth hardening — surface/propagate an explicit "Keychain unavailable"
-error (vs. a clean miss) so bind fails loudly instead of orphaning the identity.
+Locked-Keychain-at-launch gap — **fixed (2026-07-05).**
+`MacKeychainSecretKeyStore.load()` now distinguishes a clean miss
+(`errSecItemNotFound`, exit 44 → migrate a plaintext file or return null on a
+fresh install) from an access failure (login keychain locked / `security`
+error / timeout → use a still-present plaintext copy, else throw
+`KeychainUnavailableException`); `bind()` rethrows that exception rather than
+degrading to a fresh key. So a temporarily-unreadable Keychain now fails loudly
+("unlock the login keychain and relaunch") instead of silently minting a new
+identity and changing the node id. Covered by 5 injected-`security` tests
+(miss / migrate / unavailable-throws / unavailable-falls-back / timeout).
 
 ## 5. Invitations transition + follow-ups (2026-07-03)
 
