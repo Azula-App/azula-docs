@@ -1,12 +1,14 @@
 # iroh-kmp — the iroh SDK for azula
 
-`iroh-kmp/` (sibling repo, package `app.azula.iroh`) is a minimal iroh SDK for
-Kotlin Multiplatform. It wraps iroh in a small Rust + UniFFI crate and generates
-JNI/JNA + Kotlin/Native bindings with [Gobley](https://gobley.dev), published to
-mavenLocal as `app.azula.iroh:iroh-kmp` (version per `iroh-kmp/build.gradle.kts`,
-currently `0.1.2`; azula-app pins it in `android-app/module.yaml` and
-`jvm-app/module.yaml`). It replaces `computer.iroh:iroh`
-on jvm + android and unblocks real iroh on Android.
+`iroh-kmp/` (sibling repo, package `app.azula.iroh`) is a full-featured iroh SDK
+for Kotlin Multiplatform. It wraps the `iroh` 1.0 crate in a Rust + UniFFI crate
+and generates JNI/JNA + Kotlin/Native bindings with [Gobley](https://gobley.dev).
+Published to mavenLocal — and, via CI, to **Maven Central** — as
+`app.azula.iroh:iroh-kmp` (version from `iroh-kmp/gradle.properties` `VERSION_NAME`,
+currently `0.2.0`; azula-app pins it in `android-app/module.yaml` and
+`jvm-app/module.yaml`). It replaces `computer.iroh:iroh` on jvm + android and
+unblocks real iroh on Android. It began as azula's minimal transport and now
+exposes the core iroh API so other consumers can use it standalone.
 
 ## Why it exists
 
@@ -26,10 +28,37 @@ iroh-kmp/
   build.gradle.kts                   # KMP + Gobley (cargo+uniffi) + maven-publish
 ```
 
-API (generated into `app.azula.iroh`): `IrohEndpoint.bind(alpns, secretKey?)`,
-`nodeId()`, `secretKeyBytes()`, `myTicket()`, `connect(ticket, alpn)`,
-`acceptNext(): IncomingConn?`, `shutdown()`; `IrohStream.sendBytes/recv/finish`
-and `rttMs(): ULong?`. This maps 1:1 onto the app's `IrohTransport`/`P2pStream`.
+### API (generated into `app.azula.iroh`)
+
+The **azula transport surface is unchanged** and maps 1:1 onto
+`IrohTransport`/`P2pStream`: `IrohEndpoint.bind(alpns, secretKey?)`, `nodeId()`,
+`secretKeyBytes()`, `myTicket()`, `connect(ticket, alpn)`,
+`acceptNext(): IncomingConn?`, `shutdown()`, `sign()`;
+`IrohStream.sendBytes/recv/finish` and `rttMs(): ULong?`; the ticket/signature free
+fns. **Backward compat is a hard contract** — those signatures and behaviors are
+preserved byte-for-byte (`connect` is now `connectConn + openBi` and `acceptNext`
+is `acceptConn + acceptBi` internally, with identical observable behavior). All the
+below is **additive**, so azula-app/shared recompiles unchanged.
+
+The added core-iroh surface:
+- **Endpoint config**: `bind_with(EndpointOptions)` — `relayMode`
+  (`Default`/`Disabled`/`Custom(urls)`), `addressLookup`, `bindAddr`,
+  `externalAddrs`, `warmUpOnline`. `bind` is a thin delegate with every option
+  defaulted to today's behavior.
+- **Dial**: `connectConn(ticket)`, `connectAddr(NodeAddr)`,
+  `connectByNodeId(hex)`; **accept**: `acceptConn(): IrohConnection?` (shares the
+  single-consumer accept queue with `acceptNext` — pick one loop).
+- **`IrohConnection`**: multiple `openBi/acceptBi/openUni/acceptUni` streams,
+  datagrams (`sendDatagram`/`trySendDatagram`/`readDatagram`/`maxDatagramSize`),
+  `shutdown(code, reason)`/`closed()`/`closeReason()`, and info
+  (`remoteNodeId`/`alpn`/`stableId`/`rttMs`/`paths`/`connType`).
+- **Streams**: `IrohStream` extended (`readExact`/`readToEnd`/priority/reset/stop/
+  ids) plus uni `IrohSendStream`/`IrohRecvStream`.
+- **Status/info**: `nodeAddr()`/`nodeAddrUpdated()`, `directAddresses()`,
+  `homeRelay()`, `boundSockets()`, `waitOnline()`, `isClosed()`, `setAlpns()`,
+  `networkChange()`, `remoteInfo(hex): RemoteInfo?`. Watchers are snapshot +
+  `…Updated()` accessors (UniFFI can't ship a `Watcher` across FFI); loop
+  `…Updated()` into a `Flow` like `acceptNext`. Metrics are not yet exposed (TODO).
 
 ### Per-connection latency (`rttMs`)
 
@@ -79,7 +108,39 @@ export ANDROID_HOME=$HOME/Library/Android/sdk
 ```
 
 Publishes the root KMP metadata + per-target artifacts (`-android` aar with the
-.so, `-jvm`, `-iosarm64`, `-iossimulatorarm64`, `-iosx64`).
+.so, `-jvm`, `-iosarm64`, `-iossimulatorarm64`, `-iosx64`). `publishToMavenLocal`
+works without GPG — signing is applied only when a signing key is present.
+
+## Publishing to Maven Central + docs CI
+
+Publishing is wired through the
+[vanniktech maven-publish](https://vanniktech.github.io/gradle-maven-publish-plugin/)
+plugin (**0.35.0** — 0.37+ needs Kotlin ≥2.2 / AGP ≥8.13, which Gobley 0.3.7
+doesn't yet support) → the **Central Portal**, plus Dokka **2.2.0** for API docs.
+Three SHA-pinned workflows live in `iroh-kmp/.github/workflows/`:
+
+- **`publish.yml`** — on a `v*` tag. Runs on `macos-latest` (the only host that can
+  build every KMP target — iOS + Android + jvm — in one publication set), derives
+  the version from the tag (`-PVERSION_NAME`), and runs
+  `publishAndReleaseToMavenCentral`.
+- **`docs.yml`** — on push to `main` (+ releases). Builds Dokka HTML and uploads
+  the `dokka-html` artifact; a `deploy` job to GitHub Pages is wired but gated
+  behind `!repository.private` (Pages on a private repo needs Enterprise), so it
+  activates automatically when the repo goes public and Pages is enabled
+  (Source: GitHub Actions).
+- **`ci.yml`** — on PRs: `cargo test` + `cargo clippy -D warnings` on Linux.
+
+**Release runbook:** bump `VERSION_NAME` in `gradle.properties` *and* `version` in
+`Cargo.toml`, commit, then `git tag vX.Y.Z && git push origin vX.Y.Z`. For the
+first release, temporarily use `publishToMavenCentral` (manual Portal review)
+instead of `publishAndReleaseToMavenCentral`.
+
+**One-time prerequisites (out of band; the publish workflow is inert until done):**
+verify the `app.azula` namespace on the Central Portal (DNS TXT on `azula.app`),
+create a Portal user token, generate + publish a GPG key, then add repo secrets
+`MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`, `SIGNING_IN_MEMORY_KEY` (full
+armored private key), `SIGNING_IN_MEMORY_KEY_PASSWORD` — CI maps them to the
+`ORG_GRADLE_PROJECT_*` properties vanniktech reads.
 
 ## How azula-app consumes it
 
