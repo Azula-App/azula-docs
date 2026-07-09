@@ -5,7 +5,7 @@ for Kotlin Multiplatform. It wraps the `iroh` 1.0 crate in a Rust + UniFFI crate
 and generates JNI/JNA + Kotlin/Native bindings with [Gobley](https://gobley.dev).
 Published to mavenLocal — and, via CI, to **Maven Central** — as
 `app.azula.iroh:iroh-kmp` (version from `iroh-kmp/gradle.properties` `VERSION_NAME`,
-currently `0.2.0`; azula-app pins it in `android-app/module.yaml` and
+currently `0.1.0`; azula-app pins it in `android-app/module.yaml` and
 `jvm-app/module.yaml`). It replaces `computer.iroh:iroh` on jvm + android and
 unblocks real iroh on Android. It began as azula's minimal transport and now
 exposes the core iroh API so other consumers can use it standalone.
