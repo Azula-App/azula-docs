@@ -152,7 +152,12 @@ compile errors are real.
   `clickingTheTerminalRowInTheSharedListOpensItsChat` and
   `inboundOfferAutoDownloadsToComplete` throw `ComposeTimeoutException` (a 5000 ms
   `waitUntil`) under load and pass on a clean re-run. Timing-sensitive, not
-  logic bugs.
+  logic bugs. Re-confirmed 2026-07-10: these two still flake, now on 20–30 s
+  waits, and they do so **on a pristine baseline worktree** (1 failure in 5 runs
+  with no changes applied) — so when they fail while you're reviewing a diff,
+  check the baseline before assuming your change caused it. The failure signature
+  to look for is a bare `ComposeTimeoutException`; a *different* signature (e.g.
+  "Expected exactly '1' node but found '2'") is a real bug, not this flake.
 
 Durable fixes would be: gate/serialize the iOS-sim test run (or make the wrapper
 tolerate a post-`PASSED` non-zero sim exit), and raise/soften the E2E

@@ -115,13 +115,43 @@ put a fake in `mock-support`, inject it in tests (directly or via a test graph).
 ## The `-mock` apps (real UI, fake backend)
 
 Each platform has a sibling `-mock` app — `android-app-mock`, `jvm-app-mock`,
-`ios-app-mock` — that runs the *real* UI over `FakeTransport` and no persistence,
-so the fakes never touch the shipping app. Each pre-installs
+`ios-app-mock` — that runs the *real* UI over `FakeTransport` and no real
+persistence, so the fakes never touch the shipping app. Each pre-installs
 `AppStateHost.shared = buildMockState(scope)` (from `mock-support`) before the
 composition, so `rememberAzulaState()` returns it and the real transport is never
 created. Android's mock uses a separate `applicationId` (`app.azula.mock`) so it
 installs alongside the real app, and has no foreground service / notifier / iroh
 dep. The Maestro flows in `e2e/` drive these `-mock` apps.
+
+**They wear an inverted icon.** The real mark (green `›` + magenta `a`) on a
+near-white `#f8f8f6` ground instead of the brand's near-black, so the mock build
+is tellable apart from the real one at a glance in a launcher or dock — Android's
+mock previously had *no* icon at all and shipped as the default robot. The masters
+are never forked: `design/icon/generate.sh` renders the same four SVGs a second
+time through an `invert` palette substitution, so the geometry cannot drift. The
+desktop asset lives in `mock-support/composeResources` (`mockAppIconPainter()`),
+not `shared/`, so it never ships inside the real app.
+
+**They launch populated.** `buildMockState` binds a `SeededMessageStore`
+(`mock-support/src/dev/azula/mock/MockSeed.kt`) — a read-only `MessageStore` of
+`ConversationDto` fixtures. `PersistenceCoordinator.restoreAll` walks it exactly
+as it would a real on-disk store, so seeding it builds the sidebar rows *and* each
+conversation's history with no changes anywhere in the UI or state layer. That is
+the place to add or edit demo chats. Terminals can't come from that path
+(scrollback isn't persisted, and `terminalDispatcher` is `internal` to
+`dev.azula.state`), so `FakeTransport.incoming()` surfaces them instead: always
+`mockterm` (an interactive echo shell) and, when `FakeTransport(demoTerminal =
+true)` — which only `buildMockState` passes — a second `buildbot` replaying a
+canned build transcript. The flag exists because the test suites share this
+transport and shouldn't have to disambiguate a terminal they never asked for.
+
+Two traps worth knowing before adding another demo peer. Its id must be listed as
+a contact in `MockInvitationsStore`, or ConnectService's stranger gate closes the
+stream outright ([`invitations.md`](invitations.md)). And its id must differ from
+the others **in the first two characters**: an un-announced peer's row is labelled
+`<first 2 chars> · word · word` by `ConversationStore.mnemonicCode` and then
+*truncated* by the sidebar, so `mockterm` and `mockbuild` render as the same
+`mo · onyx · …` row — as, visibly, would `mockcargo`. Hence `buildbot`.
 
 ## Adding a feature module (recipe)
 
