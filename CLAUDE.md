@@ -108,7 +108,9 @@ the terminal emulator (`docs/terminal.md`), identity backup / recovery phrase
 subcommand, its tools, and A2UI usage (`docs/mcp-bridge.md`), streamed media
 attachments (`docs/media-transfer.md`), the invitation payload / share-link
 format and its verification model (`docs/invitations.md`), and the A2UI
-component catalog + neon-glass design system (`docs/a2ui.md`). The testing
+component catalog + neon-glass design system (`docs/a2ui.md`), and how azula-app is
+released to Play + TestFlight — the tag-driven versioning, signing, and secrets
+(`docs/release.md`). The testing
 strategy — which layer (unit / Compose UI test / Maestro) owns which kind of
 coverage — is `docs/testing.md`; read it before adding tests. Known tech debt
 and refactor candidates live in `docs/tech-debt.md` — check it before starting

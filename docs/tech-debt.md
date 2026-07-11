@@ -187,9 +187,13 @@ notification** firing + tap-routing (the *in-app* accept flow is verified, but
 the notification only posts when backgrounded, `!foreground()`, so the posted
 notification + tap wasn't exercised); and the whole iOS side on a device (Share
 Extension real flow, Photos/Files auto-export, `UNUserNotificationCenter`).
-**iOS release prerequisite:** real Apple Developer provisioning for both bundle
-ids (`ios-app` + `ios-app.AzulaShare`) with the App Groups capability and
-`group.app.azula` registered (simulator builds use ad-hoc signing).
+**iOS release prerequisite:** the bundle ids are now the real `app.azula` +
+`app.azula.AzulaShare` and the release pipeline is wired (see
+[release.md](release.md)), but it still needs real Apple Developer provisioning:
+App IDs for both bundle ids with the App Groups capability, `group.app.azula`
+registered and assigned to both, and `DEVELOPMENT_TEAM` in
+`ios-app/module.xcodeproj/project.pbxproj` replaced with the real team id (it is
+the placeholder `TEAMID0000` today). Simulator builds use ad-hoc signing.
 
 Note on a mock-only symptom that was fixed: audio/file attachments showed a
 spurious "blob missing" Failed/retry in `-mock` builds because
