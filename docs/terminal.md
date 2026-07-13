@@ -201,6 +201,18 @@ printables (see `RawTerminalInput.kt`).
    column-aligned and the cursor on its true cell even when claude's spinner/
    status glyphs (`✻ ● ✓ ➜`) fall back to a non-monospace font.
 
+   **Accessibility — rows carry their own semantics.** A `Canvas` publishes no
+   semantics of its own, so drawing the grid this way makes the terminal's
+   content invisible to *everything* that reads the semantics tree: screen
+   readers (TalkBack/VoiceOver) and UI tests alike. `GridRow` therefore attaches
+   `Modifier.semantics { contentDescription = row.text() }` to each non-blank
+   row's `Canvas` — one node per row, not one for the whole screen, so a screen
+   reader reads it line by line and a test can match a single line (Maestro's
+   regexes are line-oriented; `.` doesn't cross newlines). Blank rows get no node
+   at all. Without this, no assertion against terminal *output* can pass at any
+   layer — which is exactly the state `e2e/android.yaml` was silently in after
+   the grid moved to `Canvas`.
+
    **Vertical fill for box-drawing/block glyphs.** `LINE_HEIGHT` (21sp) is
    deliberately taller than `FONT_SIZE`'s (12.5sp) natural glyph line box —
    roomy prose spacing. Ordinary text is vertically centered in the cell
@@ -410,10 +422,14 @@ safe from any thread since it's immutable once built.
   from `azula-cli/`.
 - **`azula-app/e2e/android.yaml`** (Maestro, against `android-app-mock`) — drives
   the real terminal UI over `FakeTransport`'s `FakeTerminalStream`
-  (`mock-support/src/dev/azula/mock/FakeTransport.kt`), which auto-surfaces one
-  inbound TERM conversation and echoes typed lines. Opens the conversation,
-  waits for `"mock shell.*"`, types `ls`, asserts the echo — screenshots in
-  `e2e/screenshots/android-terminal*.png`.
+  (`mock-support/src/dev/azula/mock/FakeTransport.kt`), which auto-surfaces two
+  inbound TERM conversations: `mockterm` (row `mo · onyx · ivy`, an interactive
+  echo shell) and `buildbot` (row `bu · kite · lyra`, a canned transcript). Opens
+  `mockterm`, waits for `"mock shell.*"`, types `ls`, asserts the echo —
+  screenshots in `e2e/screenshots/android-terminal*.png`. These assertions only
+  work because of the per-row semantics above; if a change to `GridRow` drops
+  them, this flow goes quiet rather than red on the *rendering* path, so re-run
+  it on a device after touching row rendering.
 
 ## Verifying changes
 
