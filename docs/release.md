@@ -2,7 +2,9 @@
 
 Android ships to Google Play (production track), iOS to TestFlight. Both come from
 one shared version, and the whole thing is driven by two GitHub Actions workflows
-in `azula-app/.github/workflows/`.
+in `azula-app/.github/workflows/`. The version and signing logic lives in portable
+`bash` scripts, not the workflow YAML, so moving to a different CI is mostly
+re-wiring triggers and secrets — see [Porting to another CI](#porting-to-another-ci).
 
 ## The two workflows
 
@@ -84,15 +86,25 @@ both carrying App Groups and Associated Domains). `DEVELOPMENT_TEAM` is hardcode
 the Xcode project — it isn't secret (it's published in the AASA as
 `<TeamID>.app.azula`), and Xcode won't read it from the environment.
 
-## Secrets
+## Secrets / credentials
 
-| Secret | What |
-| --- | --- |
-| `KEYFILE_BASE64` | base64 of the upload keystore `.jks` |
-| `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` | its passwords and alias |
-| `GOOGLE_WORKLOAD_IDENTITY_PROVIDER`, `GOOGLE_SERVICE_ACCOUNT` | Play upload via Workload Identity Federation (no long-lived JSON key) |
-| `APPLE_TEAM_ID` | 10-character Apple team id |
-| `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_PRIVATE_KEY` | App Store Connect API **Team Key**, role **App Manager** (it creates certs and profiles, not just uploads). The `.p8` downloads exactly once |
+These are the credentials the pipeline needs; they are properties of the Google
+Play and Apple accounts, **not of GitHub**. The names below are the GitHub secret
+names, but the underlying material moves to any CI unchanged (see [Porting to
+another CI](#porting-to-another-ci)). All of them are mirrored into 1Password
+(vault *Private*).
+
+| Secret | What | Portable? |
+| --- | --- | --- |
+| `KEYFILE_BASE64` | base64 of the upload keystore `.jks` | file — fully portable |
+| `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` | its passwords and alias | fully portable |
+| `GOOGLE_WORKLOAD_IDENTITY_PROVIDER`, `GOOGLE_SERVICE_ACCOUNT` | Play upload via Workload Identity Federation (no long-lived JSON key) | **GitHub-specific** — the WIF provider trusts GitHub's OIDC issuer and is pinned to `Azula-App/azula-app`. Another CI needs its own pool/provider (its issuer, its claim) bound to the *same* service account, or a service-account JSON key instead |
+| `APPLE_TEAM_ID` | 10-character Apple team id | fully portable |
+| `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_PRIVATE_KEY` | App Store Connect API **Team Key**, role **App Manager** (it creates certs and profiles, not just uploads). The `.p8` downloads exactly once | fully portable — a file + two ids, no OIDC involved |
+
+The only genuinely GitHub-shaped credential is the Play one, and only because it
+uses OIDC federation to avoid a long-lived key. Everything else is a file or a
+string that any secret store can hold.
 
 ## One-time setup outside CI
 
@@ -102,6 +114,17 @@ the Xcode project — it isn't secret (it's published in the AASA as
   `dry_run` run so the version codes line up. A new developer account also has to
   clear Google's closed-testing requirement before production is available; until
   then point `track:` at `internal`.
+
+  **Bootstrap trap (hit 2026-07-16):** to get that first AAB you dispatch
+  `publish.yml` with `dry_run: true` against a pushed `v0.0.1` tag. But the tag push
+  triggers `publish.yml` on its own (`on: push: tags: ['v*']`), and disabling the
+  workflow before the push does **not** prevent it — re-enabling it to run the
+  dispatch replays the queued tag event as a **real, non-dry** publish run. Expect
+  that rogue `event=push` run and `gh run cancel` it, then verify its Play steps show
+  `skipped`. Two backstops keep a slip harmless on a fresh package (first upload must
+  be by hand; the listing gates aren't green yet), but cancel it regardless. The
+  clean long-term fix would be to gate the `push` trigger in `publish.yml` behind a
+  condition, or drop it and always dispatch — not yet done.
 - **Apple**: register App IDs `app.azula` and `app.azula.AzulaShare` with the App
   Groups capability (and Associated Domains on the host), register the app group
   `group.app.azula` and assign it to both, and create the App Store Connect app
@@ -110,6 +133,65 @@ the Xcode project — it isn't secret (it's published in the AASA as
   SHA-256 into `ANDROID_SHA256` and `<TeamID>.app.azula` into `IOS_APP_ID` in
   `azula-site/src/wellknown.ts` and redeploy, or app links and universal links stop
   verifying. See [deeplinks.md](deeplinks.md).
+
+## Porting to another CI
+
+If we ever leave GitHub Actions (GitLab CI, Buildkite, a self-hosted runner, a
+local `bash` release, …), most of this pipeline moves unchanged. The design keeps
+the **decisions in portable bash scripts** and leaves only orchestration to the CI.
+
+**Moves as-is — the CI-agnostic core.** Everything under
+`azula-app/.github/scripts/` is plain `bash` + `git`, with no GitHub API calls. The
+one GitHub coupling is that the version scripts append their outputs to the file in
+`$GITHUB_OUTPUT`, and that variable **falls back to `/dev/null`** when unset — so
+run them anywhere and read the values off stdout instead:
+
+- `version_lib.sh` — the version math (`parse_semver`, `version_code`), sourced by
+  the two below. The `<100` monotonicity guard lives here.
+- `get_version.sh` (`BUMP_TYPE=major|minor|patch`) — the "cut the next tag" half.
+- `version_from_tag.sh` (`RELEASE_TAG=vX.Y.Z`) — the "derive version from the tag
+  being built" half. Rebuilding a tag always reproduces the same version + code.
+- `set_version.sh` — stamps both `android-app/module.yaml` and the iOS `pbxproj`.
+  Uses `sed -i.bak` / `awk`, the spellings that work on both GNU and BSD.
+- `enable_signing.sh` — appends the Android signing block to `module.yaml` at
+  build time (see [Signing](#signing) for why it isn't committed).
+
+The **build and upload commands** are equally portable — they're just CLI:
+
+- Android build: `./kotlin package --module android-app --platform android
+  --variant release --format aab`, then find the signed AAB at the top of
+  `build/tasks/_android-app_bundleAndroid/` (only that copy is signed — not the
+  nested `intermediary-bundle.aab`).
+- Android upload: anything that speaks the Play Developer API — `fastlane supply`,
+  a raw API call, or the `r0adkll/upload-google-play` action we use now (itself a
+  thin wrapper). `packageName: app.azula`, the desired `track`.
+- iOS: `xcodebuild archive` → `-exportArchive` (with
+  `.github/ExportOptions.plist`) → `xcrun altool --upload-app`, on a macOS host.
+
+**Must be reimplemented per CI — the orchestration:**
+
+1. **Two triggers**: a manual "cut a release" entry point (→ `get_version.sh`, then
+   push the tag) and a "build the tag" entry point that fires on a `v*` tag push
+   (→ `version_from_tag.sh` → build/sign/upload). Keep them separate so the tag
+   stays the reproducible handoff.
+2. **Secret injection**: hand the [credentials](#secrets--credentials) to the job as
+   env/files. Every one is portable except the Play OIDC pair.
+3. **Play auth**: the WIF provider is bound to GitHub's OIDC issuer and the
+   `Azula-App/azula-app` repo claim, so it does **not** work from another CI as-is.
+   Two options — create a second WIF pool/provider for the new CI's OIDC issuer and
+   bind it to the *same* `azula-play-publisher` service account (best; still no
+   long-lived key), **or** give that service account a JSON key and inject it as one
+   secret (simplest; a long-lived credential to guard). Either way the service
+   account and its Play Console release permission are unchanged.
+4. **Apple signing**: needs a macOS runner with Xcode; the ASC `.p8` + key id +
+   issuer id + team id are all portable, and `-allowProvisioningUpdates` means no
+   provisioning-profile files to move.
+5. **A secret store** with a tag-triggered pipeline. If the new platform can't
+   trigger on tags, drive `version_from_tag.sh` from whatever it does expose.
+
+In short: the version/sign logic and the build/upload commands port verbatim; you
+re-author the trigger wiring, the secret plumbing, and (only for Play) an OIDC
+trust for the new issuer — or swap Play to a JSON key and skip OIDC entirely.
 
 ## Notes
 
