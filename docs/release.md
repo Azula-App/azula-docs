@@ -10,24 +10,25 @@ re-wiring triggers and secrets — see [Porting to another CI](#porting-to-anoth
 
 **`release.yml`** — manual (`workflow_dispatch`), takes a `major | minor | patch`
 choice. It reads the newest `v*` tag, bumps it, and pushes the new tag. That is all
-it does.
+it does. It does **not** auto-run `publish.yml`: a tag pushed by a workflow's
+`GITHUB_TOKEN` doesn't trigger other workflows (GitHub's loop-prevention), so
+`publish.yml`'s `on: push` never fires from here.
 
-**`publish.yml`** — triggered by that tag push (`on: push: tags: ['v*']`). It
-derives the version from the tag and, in parallel, builds, signs, and **validates**
-both platforms (Android AAB, iOS IPA + `altool --validate-app`), uploading each as a
-workflow artifact. **A tag push does not ship.** The store uploads — Play and
-TestFlight — run only on a **manual** `publish.yml` dispatch with `dry_run: false`,
-where you also pick the Play `track`.
+**`publish.yml`** — you **dispatch it by hand** against a tag. It derives the version
+from the tag and, in parallel, builds, signs, and **validates** both platforms
+(Android AAB, iOS IPA + `altool --validate-app`), uploading each as a workflow
+artifact. Run it with `dry_run: true` to build + validate; run it with `dry_run:
+false` and a `track` to ship. The store uploads (Play, TestFlight) only ever run on a
+manual `dry_run: false` dispatch — never on a push. (Its `on: push` trigger still
+exists, but only a human/PAT tag push fires it, and even then it build+validates
+only; `release.yml`'s push doesn't reach it.)
 
-This split is deliberate: "a tag exists" and "release it" are separate acts, so a
-pushed tag can never auto-ship to a live store. Shipping is always a considered
-button-press against a tag whose build you've already seen go green. The `dry_run`
-input only matters for a manual dispatch (a push is always effectively a dry run);
-use it to re-validate without shipping.
-
-The tag is the handoff. Deciding the version and building it are separate, so
-re-running `publish.yml` on a tag reproduces exactly the same version and version
-code — a failed build is re-runnable, and the eventual ship is the same artifact.
+So the full release is three explicit acts: **cut** (`release.yml` → new tag),
+**validate** (`publish.yml` dispatch, `dry_run: true`), **ship** (`publish.yml`
+dispatch, `dry_run: false` + track). "A tag exists" and "release it" are separate on
+purpose, so a tag can never auto-ship to a live store. Re-running `publish.yml` on a
+tag reproduces exactly the same version and version code — a failed build is
+re-runnable, and the eventual ship is the same artifact.
 
 ## Versioning
 
