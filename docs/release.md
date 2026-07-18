@@ -129,10 +129,15 @@ string that any secret store can hold.
   Groups capability (and Associated Domains on the host), register the app group
   `group.app.azula` and assign it to both, and create the App Store Connect app
   record. Automatic signing will not create the app group for you.
-- **Deep links**: once the app is really signed, put the Play **app-signing**
-  SHA-256 into `ANDROID_SHA256` and `<TeamID>.app.azula` into `IOS_APP_ID` in
-  `azula-site/src/wellknown.ts` and redeploy, or app links and universal links stop
-  verifying. See [deeplinks.md](deeplinks.md).
+- **Deep links** (`azula-site/src/wellknown.ts`, redeploy after any change, or app
+  links / universal links stop verifying — see [deeplinks.md](deeplinks.md)):
+  - `IOS_APP_ID` — **done**, `EB8N37743E.app.azula` (team id + bundle id; committed).
+  - `ANDROID_SHA256` — **still a placeholder.** It must be the Play **app-signing**
+    SHA-256 from Play Console (*not* the upload cert), which only exists once the
+    first bundle has been uploaded. Copy it in and redeploy the worker.
+
+  The worker hasn't been redeployed yet — do it once `ANDROID_SHA256` is filled so
+  both identities go live together.
 
 ## Porting to another CI
 
