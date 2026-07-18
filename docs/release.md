@@ -13,15 +13,21 @@ choice. It reads the newest `v*` tag, bumps it, and pushes the new tag. That is 
 it does.
 
 **`publish.yml`** — triggered by that tag push (`on: push: tags: ['v*']`). It
-derives the version from the tag it is building and then, in parallel, builds and
-ships Android to Play and iOS to TestFlight.
+derives the version from the tag and, in parallel, builds, signs, and **validates**
+both platforms (Android AAB, iOS IPA + `altool --validate-app`), uploading each as a
+workflow artifact. **A tag push does not ship.** The store uploads — Play and
+TestFlight — run only on a **manual** `publish.yml` dispatch with `dry_run: false`,
+where you also pick the Play `track`.
 
-The tag is the handoff. Deciding the version and building it are separate, which
-means re-running `publish.yml` on a tag reproduces exactly the same version and
-version code — a failed platform build is re-runnable without cutting a new
-version. `publish.yml` can also be dispatched by hand against an existing tag, with
-a `dry_run` option that builds, signs, exports, and validates against Apple without
-publishing to either store.
+This split is deliberate: "a tag exists" and "release it" are separate acts, so a
+pushed tag can never auto-ship to a live store. Shipping is always a considered
+button-press against a tag whose build you've already seen go green. The `dry_run`
+input only matters for a manual dispatch (a push is always effectively a dry run);
+use it to re-validate without shipping.
+
+The tag is the handoff. Deciding the version and building it are separate, so
+re-running `publish.yml` on a tag reproduces exactly the same version and version
+code — a failed build is re-runnable, and the eventual ship is the same artifact.
 
 ## Versioning
 
@@ -115,16 +121,14 @@ string that any secret store can hold.
   clear Google's closed-testing requirement before production is available; until
   then point `track:` at `internal`.
 
-  **Bootstrap trap (hit 2026-07-16):** to get that first AAB you dispatch
-  `publish.yml` with `dry_run: true` against a pushed `v0.0.1` tag. But the tag push
-  triggers `publish.yml` on its own (`on: push: tags: ['v*']`), and disabling the
-  workflow before the push does **not** prevent it — re-enabling it to run the
-  dispatch replays the queued tag event as a **real, non-dry** publish run. Expect
-  that rogue `event=push` run and `gh run cancel` it, then verify its Play steps show
-  `skipped`. Two backstops keep a slip harmless on a fresh package (first upload must
-  be by hand; the listing gates aren't green yet), but cancel it regardless. The
-  clean long-term fix would be to gate the `push` trigger in `publish.yml` behind a
-  condition, or drop it and always dispatch — not yet done.
+  **Bootstrap trap (hit 2026-07-16, now designed out):** the first bootstrap dry run
+  taught us that a `v*` tag push *used* to auto-ship — `publish.yml` triggered on the
+  push and ran the uploads, and disabling the workflow first didn't help (re-enabling
+  it replayed the queued tag event as a real, non-dry run). That hazard is gone as of
+  2026-07-18: the store-upload steps are now gated to `github.event_name ==
+  'workflow_dispatch' && !inputs.dry_run`, so a tag push builds/validates only and can
+  never ship. Shipping is an explicit manual dispatch. (Only relevant if you ever
+  re-add an auto-shipping push trigger — don't.)
 - **Apple**: register App IDs `app.azula` and `app.azula.AzulaShare` with the App
   Groups capability (and Associated Domains on the host), register the app group
   `group.app.azula` and assign it to both, and create the App Store Connect app
