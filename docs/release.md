@@ -85,13 +85,44 @@ bash .github/scripts/enable_signing.sh   # leaves module.yaml dirty; don't commi
 (`--properties-file` *reads* the file to populate the keystore — it does not write
 it.) `keystore.properties` is gitignored.
 
-**iOS**: automatic signing (`CODE_SIGN_STYLE = Automatic`) plus
-`xcodebuild -allowProvisioningUpdates` and the App Store Connect API key. The key is
-needed for the TestFlight upload anyway, so signing this way costs no extra secrets
-and avoids hand-maintaining two provisioning profiles (the app *and* AzulaShare,
-both carrying App Groups and Associated Domains). `DEVELOPMENT_TEAM` is hardcoded in
-the Xcode project — it isn't secret (it's published in the AASA as
-`<TeamID>.app.azula`), and Xcode won't read it from the environment.
+**iOS**: **manual** distribution signing with our own cert + profiles. Automatic
+("cloud managed") signing does **not** work here: the App Store Connect API key is
+**App Manager** role, which cannot mint a cloud distribution certificate ("Cloud
+signing permission error"). The key *can* create certs/profiles through the raw ASC
+API — it's specifically Xcode's cloud-managed signing that's blocked. So the iOS job:
+
+- imports an **Apple Distribution certificate** (created once via the ASC API) from a
+  `.p12` secret into a throwaway keychain on the runner;
+- installs two **App Store provisioning profiles** (app + AzulaShare, created via the
+  ASC API referencing that cert) from secrets into
+  `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` (the **Xcode 16+**
+  location — the old `~/Library/MobileDevice/...` is not read);
+- runs `xcodebuild archive` with `CODE_SIGN_STYLE=Manual`, naming each target's
+  profile by injecting `PROVISIONING_PROFILE_SPECIFIER` into `project.pbxproj` at CI
+  time (not committed, so a local `./kotlin build` stays automatic);
+- **hand-packages** the IPA (zip the signed `.app` into `Payload/`) instead of
+  `xcodebuild -exportArchive`, which won't honour `signingStyle: manual` on the
+  runner. Valid for an iOS 15+ Swift app (no `SwiftSupport` needed); `altool
+  --validate-app` confirms acceptance. dSYMs upload separately since hand-zip skips
+  xcodebuild's `Symbols/` collection.
+
+All of that — cert import, profile install, archive, hand-zip — runs in **one** job
+step: a GitHub runner gives each step a fresh shell, and the imported keychain
+identity does not reliably carry across steps.
+
+`DEVELOPMENT_TEAM` is hardcoded in the Xcode project — not secret (it's published in
+the AASA as `<TeamID>.app.azula`), and Xcode won't read it from the environment. The
+app's `Info.plist` must declare `UISupportedInterfaceOrientations` (+ `~ipad`) or
+App Store validation rejects the build (error 90474).
+
+Two traps worth knowing. (1) A repo file (`ExportOptions.plist`, `Info.plist`,
+`project.pbxproj`, source) is read from the **built tag's** tree, while the workflow
+*file* comes from the dispatched ref — so a fix committed to a branch but not into
+the tag never reaches the build; that's why the committed manual `ExportOptions.plist`
+was ignored (the runner used the tag's automatic one) and why the hand-zip path,
+being entirely inline in the workflow, is robust. (2) Known follow-up: restore
+`-exportArchive` with the ExportOptions **inlined in the workflow** to regain
+`Symbols/` — it works once the plist is actually present.
 
 ## Secrets / credentials
 
@@ -107,7 +138,9 @@ another CI](#porting-to-another-ci)). All of them are mirrored into 1Password
 | `STORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD` | its passwords and alias | fully portable |
 | `GOOGLE_WORKLOAD_IDENTITY_PROVIDER`, `GOOGLE_SERVICE_ACCOUNT` | Play upload via Workload Identity Federation (no long-lived JSON key) | **GitHub-specific** — the WIF provider trusts GitHub's OIDC issuer and is pinned to `Azula-App/azula-app`. Another CI needs its own pool/provider (its issuer, its claim) bound to the *same* service account, or a service-account JSON key instead |
 | `APPLE_TEAM_ID` | 10-character Apple team id | fully portable |
-| `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_PRIVATE_KEY` | App Store Connect API **Team Key**, role **App Manager** (it creates certs and profiles, not just uploads). The `.p8` downloads exactly once | fully portable — a file + two ids, no OIDC involved |
+| `APPSTORE_KEY_ID`, `APPSTORE_ISSUER_ID`, `APPSTORE_PRIVATE_KEY` | App Store Connect API **Team Key**, role **App Manager**. Creates certs/profiles via the raw API and uploads to TestFlight — but **cannot** do Xcode cloud-managed distribution signing (hence manual signing above). The `.p8` downloads exactly once | fully portable — a file + two ids, no OIDC involved |
+| `APPLE_DIST_CERT_P12`, `APPLE_DIST_CERT_PASSWORD` | base64 of our Apple **Distribution** certificate `.p12` and its password. Created once via the ASC API (see the scripts in the release commit); imported into a keychain for manual signing | fully portable |
+| `APPLE_PROFILE_APP_B64`, `APPLE_PROFILE_EXT_B64` | base64 of the two **App Store** provisioning profiles (`app.azula`, `app.azula.AzulaShare`), created via the ASC API against the distribution cert | fully portable — regenerate if the cert or an App ID's capabilities change |
 
 The only genuinely GitHub-shaped credential is the Play one, and only because it
 uses OIDC federation to avoid a long-lived key. Everything else is a file or a
