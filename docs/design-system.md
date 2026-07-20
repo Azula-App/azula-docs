@@ -603,13 +603,32 @@ Cross-reference with [`docs/tech-debt.md`](tech-debt.md) before structural work.
     `--surface-code` `#1a1a23`. See §10.
 12. **Half-pixel type on the site** — `13.5px` / `12.5px` survive on 8 lines in
     dense inline layouts. Folding them to the §4.3 scale needs visual QA.
-13. **No visual regression testing.** The token work was verified by compilation,
-    by reading code, and by a manual smoke check of the running app — the JVM
-    `-mock` build's connect pane and settings screen, plus the site's landing page
-    and focus ring. That is a spot check, not coverage: **iOS and Android were
-    never launched, and chat, terminal, invites and the A2UI surfaces were never
-    looked at.** Screenshot tests over the `-mock` builds would make the next
-    sweep far safer.
+13. **No automated visual regression testing.** The token work has now been
+    verified by hand on all three platforms — see below for what that covered and
+    what it did not. What's still missing is *automated* coverage: nothing
+    diffs screenshots, so the next sweep has no safety net. Golden-image tests
+    over the `-mock` builds are the gap worth closing.
+
+### Visual verification performed
+
+Done by hand after the migration, via the Maestro flows in `azula-app/e2e/`
+(see [`docs/testing.md`](testing.md)) plus direct screenshots.
+
+| Platform | Covered |
+|---|---|
+| JVM desktop | connect pane, settings (muted panels, toggle) |
+| iOS 26.5 sim, iPhone 17 Pro | home, terminal, terminal input — `e2e/ios.yaml`, all assertions passed |
+| Android emu, Pixel 3a API 34 | home, terminal, terminal input, connect-peer, chat + **A2UI dice widget** — `e2e/android.yaml`, all assertions passed |
+| azula.app (live) | landing page, focus ring confirmed by keyboard tab |
+
+The background-wash change (§7.3) is confirmed working: the magenta wash is
+clearly visible at the top of both the iOS and Android home screens, fading to
+`bg` — which is what the decision in item 7 was meant to produce, and what the
+desktop `bg1` fill had been masking.
+
+**Not covered:** physical devices (emulator/simulator only), the media/attachment
+flows (`e2e/ios-media.yaml` was not re-run), invites, and light/dark variation
+(the app is dark-only by design, §12).
 
 ### Accepted — not debt
 
