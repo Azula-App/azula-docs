@@ -26,7 +26,7 @@ edit / add a PLATFORMS entry to target a new store. See ../SKILL.md.
 import argparse, base64, html, os, subprocess, sys
 
 # ── azula brand tokens (neon-glass). These are a DERIVED COPY.
-#    Source of truth: azula-docs/docs/design-system.md (§3 color, §9 brand).
+#    Source of truth: azula-docs/openspec/specs/design-system/design.md (§3 color, §9 brand).
 #    Change it there first, then mirror here. ─────────────────────────────────
 BG      = "#070709"   # design system: `bg`
 PINK    = "#ff2d9b"   # design system: `primary`

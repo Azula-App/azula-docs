@@ -1,0 +1,162 @@
+# azula — working agreement
+
+This is the cross-repo working agreement for azula. It lives in `azula-docs`
+(the docs repo) and is served to every agent via `CLAUDE.md` / `AGENTS.md`
+pointers. Durable design truth lives beside it in `openspec/specs/`; in-flight
+and planned work lives in `openspec/changes/`.
+
+## Model usage (cost)
+
+**Delegate implementation work to Sonnet; reserve Opus for orchestration and
+hard reasoning.** The main loop runs on Opus — keep it for planning,
+architecture, cross-cutting decisions, and synthesizing results. For anything
+that is well-scoped or token-heavy (writing/iterating a module, build/test
+loops, log-grinding, exploratory tool work like emulator/simulator runs), spawn
+a subagent with `model: "sonnet"` (Agent tool) so the verbose output and grunt
+work stay off the Opus context. Only do such work inline on Opus when delegation
+would clearly cost more than it saves (tiny edits, a single decisive command).
+
+## Project map
+
+azula is split across sibling git repos, all checked out under one parent
+directory (e.g. `~/Developer/azula/`). There is no monorepo — each repo builds,
+versions, and deploys on its own.
+
+- `azula-app/` — Kotlin Multiplatform (Amper) + Compose Multiplatform. Wired with
+  **Metro** compile-time DI (one flat graph) and split into **api/real** feature
+  modules — see
+  [`openspec/specs/architecture-di/design.md`](specs/architecture-di/design.md)
+  for the DI + module conventions and how to add a feature module.
+  - `core/` — dependency leaf (the Metro `AppScope`, `RecoveryPhrase`).
+  - api/real feature pairs: `network-api`/`network-real` (iroh transport
+    interfaces / the real iroh-kmp transport + peer stores),
+    `terminal-api`/`terminal-real` (the `TerminalEmulator` engine / terminal UI +
+    real sessions — see
+    [`openspec/specs/terminal/design.md`](specs/terminal/design.md)),
+    `persistence-api`/`persistence-real` (message/profile stores), and
+    `notification-api`.
+  - standalone libs: `a2ui` (A2UI model/codec/renderer), `theme`, `ui-common`,
+    `markdown`, `link` (deeplink parsing + QR).
+  - `mock-support/` — the fakes kept out of the real app: `FakeTransport` +
+    `buildMockState()`, used only by the `-mock` apps.
+  - `shared/` — the assembler: `AppGraph`, the `AzulaState` coordinator and its
+    extracted services (decomposition **complete** — see `architecture-di`),
+    and the screen UI.
+  - `android-app/`, `jvm-app/`, `ios-app/` — thin per-platform entry points that
+    build the graph. Each has a sibling `-mock` app (`android-app-mock`, …) that
+    injects the fakes for UI tests.
+  - `design/`, `e2e/` — design mock notes and Maestro flows; the `./kotlin`
+    wrapper and `project.yaml` live at this repo's root.
+- `azula-cli/` — Rust cargo workspace. The root `azula` package (lib + binary):
+  `serve` (MCP client + PTY shell), `serve-mcp` / `mcp` (HTTP / stdio MCP server
+  bridging an LLM to the app over iroh — see
+  [`openspec/specs/mcp-bridge/design.md`](specs/mcp-bridge/design.md)), plus
+  `pair`/`devices`/`qr`. The `demos/` member builds the separate `azula-demos`
+  binary (`demo-ui`, `blackjack`) so demo tools don't ship in the production
+  server. Sources in `src/`, extra repo-local notes in `docs/`.
+- `azula-site/` — Cloudflare Worker for azula.app (landing + session-link URLs +
+  deeplink well-known files). Sources in `src/`.
+- `iroh-kmp/` — the iroh SDK for KMP (package `app.azula.iroh`): a minimal Rust +
+  UniFFI crate wrapping iroh, generated into a Kotlin Multiplatform library by
+  [Gobley](https://gobley.dev) and published to mavenLocal. `azula-app/shared`
+  consumes it (jvm + android) instead of `computer.iroh:iroh`; this is what makes
+  real iroh work on Android. See
+  [`openspec/specs/iroh-kmp/design.md`](specs/iroh-kmp/design.md).
+- `azula-docs/` — cross-repo documentation and this working agreement. Holds the
+  shared CLAUDE/AGENTS files, the OpenSpec tree (`openspec/`), and the shared
+  agent skills (`.claude/skills/`).
+
+## OpenSpec (specs and changes)
+
+This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for
+spec-driven development. Everything lives under `azula-docs/openspec/` (the
+parent checkout symlinks `openspec -> azula-docs/openspec` so the CLI and
+slash commands work from the parent too).
+
+- `openspec/specs/<capability>/spec.md` — normative requirements
+  (`### Requirement:` + SHALL + `#### Scenario:` WHEN/THEN). What the system
+  SHALL do.
+- `openspec/specs/<capability>/design.md` — the deep prose companion: wire
+  formats, rationale, test vectors, implementation notes. Where a spec.md and
+  its design.md disagree, spec.md is the intent.
+- `openspec/changes/<name>/` — in-flight or planned work: `proposal.md`
+  (why/what), optional `design.md`, `tasks.md` checklist, and delta specs
+  (`specs/<capability>/spec.md` with ADDED/MODIFIED/REMOVED requirements).
+- `openspec/changes/archive/` — completed changes, kept as history.
+
+Authoring gotcha: `openspec validate --strict` only scans the **first
+physical line** of a requirement's body for SHALL/MUST — keep the keyword in
+the first line (don't hard-wrap it onto line 2), and give every requirement at
+least one `#### Scenario:` (exactly four hashes).
+
+Workflow (slash commands installed in `.claude/commands/opsx/`, skills in
+`.claude/skills/openspec-*`): `/opsx:explore` to think, `/opsx:propose` to
+start a change, `/opsx:apply` to implement its tasks, `/opsx:archive` when it
+ships (this merges delta specs into the main specs). CLI: `openspec list`,
+`openspec validate --all`, `openspec archive <name>`.
+
+**Keeping specs in sync:** plan files (`~/.claude/plans/…`) are ephemeral —
+design must not live only there. Whenever you do design or architecture work,
+capture the durable version here: requirement-level changes go through an
+OpenSpec change (delta specs → archive merges them), and prose detail goes in
+the capability's `design.md`. Treat "I'm about to overwrite the plan doc" as
+the trigger. Before starting structural work, check `openspec list` and skim
+`openspec/changes/` — known tech debt and refactor candidates live there as
+change proposals; archive entries you resolve.
+
+## Agent mirrors
+
+Claude remains the canonical setup, but compatible coding agents should read the
+same agreement through symlinks: `AGENTS.md -> CLAUDE.md` where a `CLAUDE.md`
+exists, and `.agents -> .claude` where a `.claude/` directory exists. Keep those
+mirrors as symlinks rather than separate copies so the instructions cannot drift.
+
+## Build / verify
+
+Each command runs inside its own repo, not a shared root.
+
+- Kotlin (`azula-app/`, Amper wrapper): `./kotlin build -m jvm-app`,
+  `./kotlin check -m shared`. Run from the `azula-app/` root (the `./kotlin`
+  wrapper is here). The wrapper downloads its toolchain + deps, so builds need
+  network — disable the command sandbox.
+- Rust (`azula-cli/`): `cargo build`.
+- Worker (`azula-site/`): `npm install && npm run typecheck`.
+- iroh SDK (`iroh-kmp/`): `./gradlew publishToMavenLocal` — needs **JDK 17**
+  (AGP 8.7; e.g. `JAVA_HOME=…/zulu-17…`), the Android NDK r28+, and Rust with the
+  Android/iOS targets. Re-run after changing the crate so azula-app picks up the
+  new artifact. See `openspec/specs/iroh-kmp/design.md`.
+
+## azula device registry (MCP bridge state)
+
+`azula serve-mcp` + `azula pair <url>` persist paired devices as JSON the agent
+can read:
+
+- project-local `<worktree-root>/.azula/devices.json` — git-worktree-aware (first
+  ancestor with a `.git`); `azula pair` writes here inside a repo,
+- global `~/.azula/devices.json` — fallback / `--global`; reads merge global then
+  project (project wins by name),
+- runtime `$TMPDIR/azula/bridge.json` — a running bridge's `{bind, pid, devices}`.
+
+To see which devices are paired/connected, read those files.
+
+## Design system
+
+[`openspec/specs/design-system/design.md`](specs/design-system/design.md) is
+**normative for every visual value** across all repos — the neon-glass palette,
+typography, spacing, radius, glow, motion and brand. Where code and that page
+disagree, the page is the intent and the code is the bug.
+
+Do **not** invent colors, sizes or radii, and do not read tokens out of whichever
+file is nearest. The palette is duplicated in six derived copies (`Color.kt`,
+`A2uiTokens.kt`, `azula-site/src/pages.ts`, `azula-site/src/icon.ts`,
+`store-listing-assets/scripts/gen.py`, `azula-app/design/icon/*.svg`), they use
+three different naming schemes for the same hexes, and the same word means
+different values in different layers. §10 of that page maps every current name to
+its canonical one; §11 lists the known divergences. Changing a token means
+changing the page first, then the derived copies in §13.
+
+## Conventions
+
+- Custom fonts fall back to system families until `.ttf` are added to
+  `azula-app/shared/composeResources/font/`.
+- Don't commit or deploy unless asked; branch first if on `main`.

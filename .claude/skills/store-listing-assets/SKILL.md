@@ -48,7 +48,7 @@ short headline — not raw device grabs. Framing is what lets us hit the exact
 ## Brand source of truth (do not invent values)
 
 - **Tokens** (bg `#070709`, pink `#FF2D9B`, green `#52C98A`, JetBrains Mono):
-  [`azula-docs/docs/design-system.md`](../../../docs/design-system.md) is
+  [`azula-docs/openspec/specs/design-system/design.md`](../../../openspec/specs/design-system/design.md) is
   **normative** — §3 color, §7 glow/gradients, §9 brand. `Color.kt` and
   `A2uiTokens` are derived copies, as are the constants at the top of
   `scripts/gen.py`.

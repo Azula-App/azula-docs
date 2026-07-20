@@ -1,0 +1,20 @@
+schema: spec-driven
+context: |
+  azula is split across sibling git repos under one parent checkout (no
+  monorepo): azula-app (Kotlin/Compose Multiplatform, Metro DI, api/real
+  modules), azula-cli (Rust iroh server + MCP bridge), azula-site (Cloudflare
+  Worker for azula.app), iroh-kmp (Rust+UniFFI iroh SDK for KMP), and
+  azula-docs (this repo — the OpenSpec tree and working agreement).
+
+  Read openspec/project.md for the full working agreement: project map,
+  build/verify commands per repo, model-usage policy, and conventions.
+
+  Key constraints:
+  - specs/<capability>/design.md is the deep prose companion to each spec.md
+    (wire formats, test vectors, rationale). Keep both in sync; spec.md is
+    normative.
+  - specs/design-system/design.md is normative for every visual value across
+    all repos; tokens change there first, then in the derived copies it lists.
+  - Testing strategy (which layer owns which coverage) is specs/testing/;
+    read it before adding tests.
+  - Don't commit or deploy unless asked; branch first if on main.
