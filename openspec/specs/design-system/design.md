@@ -677,6 +677,7 @@ This page is normative. When a token changes here, update the derived copies:
 
 | Copy | Path |
 |---|---|
+| Web DS package (Claude Design sync) | `azula-docs/design-system/src/tokens.css` (+ `components.css` for recipes) |
 | App palette | `azula-app/theme/src/dev/azula/theme/Color.kt` |
 | App semantic tokens | `azula-app/a2ui/src/dev/azula/a2ui/A2uiTokens.kt` |
 | Site CSS | `azula-site/src/pages.ts` (`STYLE`, `:root`) |
