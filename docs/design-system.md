@@ -603,10 +603,13 @@ Cross-reference with [`docs/tech-debt.md`](tech-debt.md) before structural work.
     `--surface-code` `#1a1a23`. See §10.
 12. **Half-pixel type on the site** — `13.5px` / `12.5px` survive on 8 lines in
     dense inline layouts. Folding them to the §4.3 scale needs visual QA.
-13. **No visual regression testing.** Every change in this effort was verified by
-    compilation and by reading code, never by looking at the running app. The
-    token work is mechanically sound but nobody has *seen* it. Screenshot tests
-    over the `-mock` builds would make the next sweep far safer.
+13. **No visual regression testing.** The token work was verified by compilation,
+    by reading code, and by a manual smoke check of the running app — the JVM
+    `-mock` build's connect pane and settings screen, plus the site's landing page
+    and focus ring. That is a spot check, not coverage: **iOS and Android were
+    never launched, and chat, terminal, invites and the A2UI surfaces were never
+    looked at.** Screenshot tests over the `-mock` builds would make the next
+    sweep far safer.
 
 ### Accepted — not debt
 
