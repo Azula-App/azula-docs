@@ -1,23 +1,29 @@
-# A2UI — azula's agent-drawn UI + its neon-glass design system
+# A2UI — azula's agent-drawn UI
 
 A2UI lets an agent (over the MCP↔iroh bridge, `render_ui`) stream a **declarative
 component tree** that the app renders live. The app implements the **A2UI Basic
 Catalog** (wire protocol `v0.9.1`: createSurface / updateComponents /
 updateDataModel / deleteSurface) styled in azula's **"neon-glass"** language.
 
-The visual source of truth is the design project `azula - A2UI Catalog` (Claude
-Design). This page is the durable summary of what it specifies and where it lives
-in code.
+This page owns the **component contract**: which components exist, their variants,
+and how they map to the renderer and the agent-facing catalog.
+
+**Design tokens are not defined here.** Colors, type, spacing, radius, glow and
+brand live in [`docs/design-system.md`](design-system.md), which is normative for
+all of azula — app, site and store assets. Anything on this page that mentions a
+token refers to a name defined there.
+
+The visual reference is the design project `azula - A2UI Catalog` (Claude Design).
 
 ## Where it lives
 
 - **Renderer:** `azula-app/a2ui/src/dev/azula/a2ui/A2uiRenderer.kt` — `A2uiSurfaceView`
   dispatches over each component's `"component"` type.
-- **Tokens:** `azula-app/a2ui/.../A2uiTokens.kt` — the semantic design tokens the
-  renderer draws from (colors, shape scale, gradient). Brand colors are shared with
-  `theme/.../Color.kt` (`AzulaColors`); catalog-only values (`surfaceAlt`, `muted`,
-  `accent`) live there too. `A2uiTokens` is `public` (not `internal`) — `shared`
-  exports `../a2ui`, so it's the app-wide chat design source, not just A2UI's; see
+- **Tokens:** `azula-app/a2ui/.../A2uiTokens.kt` — the semantic tokens the renderer
+  draws from (colors, shape scale, gradient), derived from
+  [`docs/design-system.md`](design-system.md). Brand colors are shared with
+  `theme/.../Color.kt` (`AzulaColors`). `A2uiTokens` is `public` (not `internal`) —
+  `shared` exports `../a2ui`, so it's the app-wide chat design source, not just A2UI's; see
   Phase 4 of the chat-consolidation plan (`azula-docs/docs/architecture-di.md`
   isn't the plan doc, but the intent is `Chat.kt`'s bubbles/input/chrome read the
   same tokens instead of separate `AzulaColors` literals).
@@ -28,20 +34,15 @@ in code.
   `azula-cli/src/bridge.rs` — keep it in lockstep with the renderer's component
   vocabulary and variant names.
 
-## Design tokens (neon-glass)
+## Design tokens
 
-| Token | Value | Notes |
-|---|---|---|
-| primary / primaryLight / primaryDark | `#FF2D9B` / `#FF6EC7` / `#C4156E` | pink accent; primary Button = pink→pinkDark gradient + glow |
-| onPrimary | white | text/ink on a primary fill |
-| bg / surface / surfaceAlt | `#070709` / `#0A0A10` / `#0D0D15` | base, container, raised card |
-| outlineSoft / outline / outlineStrong | `#23232E` / `#26262F` / `#2A2A36` | hairlines |
-| content / contentBright / muted / mutedFaint | `#D6D6E0` / `#F3EEF1` / `#7A7A8A` / `#6A6A7A` | text ramp |
-| success / warning / accent | `#52C98A` / `#FFD23F` / `#3FC8FF` | status |
+See [`docs/design-system.md`](design-system.md) — §3 color, §4 typography,
+§6 radius, §7 glow and gradients. `A2uiTokens.kt` is a derived copy of those
+values, not an independent source.
 
-Shape scale: `rSm` 7dp · `rMd` 9dp · `rLg` 12dp · `rXl` 16dp · `rPill` 50%.
-Type: `Fonts.ui` (Space Grotesk — currently the system sans-serif fallback) for
-content, `Fonts.mono` (JetBrains Mono, bundled) for code/labels/values.
+Note that `A2uiTokens` uses names the design system has since superseded
+(`surfaceAlt` → `surfaceRaised`, `muted` → `contentSubtle`, `mutedFaint` →
+`contentFaint`, `selectionFill` → `primarySelected`); §10 of that page maps them.
 
 Two chat-only shapes ride alongside the shape scale: `rBubbleMe` (15/15/5/15dp)
 and `rBubbleThem` (15/15/15/5dp) — the asymmetric "tail" corners for
@@ -78,6 +79,11 @@ the app only resolves `{"path":"/ptr"}` data-model bindings.
 
 ## Keeping in sync
 
-Any new component, variant, or token must be updated in **three** places together:
-the renderer (`A2uiRenderer.kt`) + tokens (`A2uiTokens.kt`), the agent-facing catalog
-(`render_ui` description in `bridge.rs`), and this page.
+**Components.** Any new component or variant must be updated in **three** places
+together: the renderer (`A2uiRenderer.kt`), the agent-facing catalog (`render_ui`
+description in `azula-cli/src/bridge.rs`), and this page.
+
+**Tokens.** Token changes do *not* start here. Change
+[`docs/design-system.md`](design-system.md) first — it is normative — then update
+the derived copies listed in its §13, of which `A2uiTokens.kt` is one. A token
+added only to `A2uiTokens.kt` is drift, not a design decision.

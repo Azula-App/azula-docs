@@ -104,8 +104,9 @@ with `caption: <text>` appended if the sender included one.
 in an `a2ui` frame by `send_a2ui`). The full component/prop catalog is
 reproduced verbatim in `render_ui`'s `#[tool(description = …)]` string (it must
 be kept in lockstep with the app's renderer) — see
-[`a2ui.md`](a2ui.md) for the design-system summary and where the renderer
-lives; don't duplicate the catalog here.
+[`a2ui.md`](a2ui.md) for the component contract and where the renderer lives, and
+[`design-system.md`](design-system.md) for the tokens it draws from; don't
+duplicate the catalog here.
 
 **Images in A2UI:** the `Image` component's `url` prop only renders a
 `data:image/...;base64,...` URI — a remote `http(s)://` URL renders a themed

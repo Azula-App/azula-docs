@@ -25,13 +25,16 @@ edit / add a PLATFORMS entry to target a new store. See ../SKILL.md.
 """
 import argparse, base64, html, os, subprocess, sys
 
-# ── azula brand tokens (neon-glass). Source of truth: azula-app/theme/.../Color.kt
-#    + AzulaColors in a2ui, documented in azula-docs/docs/a2ui.md ───────────────
-BG      = "#070709"   # base background
-PINK    = "#ff2d9b"   # primary accent
-GREEN   = "#52c98a"   # secondary accent (the `>` prompt)
-WHITE   = "#f3eef1"   # bright content
-MUTED   = "#8a8a9a"   # muted subtext
+# ── azula brand tokens (neon-glass). These are a DERIVED COPY.
+#    Source of truth: azula-docs/docs/design-system.md (§3 color, §9 brand).
+#    Change it there first, then mirror here. ─────────────────────────────────
+BG      = "#070709"   # design system: `bg`
+PINK    = "#ff2d9b"   # design system: `primary`
+GREEN   = "#52c98a"   # design system: `brandPrompt` / `success` (the `>` prompt)
+WHITE   = "#f3eef1"   # design system: `contentBright`
+MUTED   = "#8a8a9a"   # design system: `contentDim` — NOT the app's `muted`,
+                      # which is `contentSubtle` #7a7a8a. Name collision; the
+                      # hex here is correct for store assets.
 MONO    = "JetBrains Mono, monospace"   # the brand typeface
 EM      = 0.62        # JetBrains Mono advance width per char (for auto-fit)
 

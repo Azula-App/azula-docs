@@ -107,14 +107,30 @@ the terminal emulator (`docs/terminal.md`), identity backup / recovery phrase
 (`docs/identity.md`), the MCP↔iroh bridge — `serve-mcp` HTTP + the stdio `mcp`
 subcommand, its tools, and A2UI usage (`docs/mcp-bridge.md`), streamed media
 attachments (`docs/media-transfer.md`), the invitation payload / share-link
-format and its verification model (`docs/invitations.md`), and the A2UI
-component catalog + neon-glass design system (`docs/a2ui.md`), and how azula-app is
+format and its verification model (`docs/invitations.md`), the A2UI
+component catalog (`docs/a2ui.md`), and how azula-app is
 released to Play + TestFlight — the tag-driven versioning, signing, and secrets
 (`docs/release.md`). The testing
 strategy — which layer (unit / Compose UI test / Maestro) owns which kind of
 coverage — is `docs/testing.md`; read it before adding tests. Known tech debt
 and refactor candidates live in `docs/tech-debt.md` — check it before starting
 structural work, and delete entries you resolve.
+
+## Design system
+
+[`docs/design-system.md`](docs/design-system.md) is **normative for every visual
+value** across all repos — the neon-glass palette, typography, spacing, radius,
+glow, motion and brand. Where code and that page disagree, the page is the intent
+and the code is the bug.
+
+Do **not** invent colors, sizes or radii, and do not read tokens out of whichever
+file is nearest. The palette is duplicated in six derived copies (`Color.kt`,
+`A2uiTokens.kt`, `azula-site/src/pages.ts`, `azula-site/src/icon.ts`,
+`store-listing-assets/scripts/gen.py`, `azula-app/design/icon/*.svg`), they use
+three different naming schemes for the same hexes, and the same word means
+different values in different layers. §10 of that page maps every current name to
+its canonical one; §11 lists the known divergences. Changing a token means
+changing the page first, then the derived copies in §13.
 
 ## Conventions
 

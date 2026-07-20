@@ -48,9 +48,13 @@ short headline — not raw device grabs. Framing is what lets us hit the exact
 ## Brand source of truth (do not invent values)
 
 - **Tokens** (bg `#070709`, pink `#FF2D9B`, green `#52C98A`, JetBrains Mono):
-  `azula-app/theme/.../Color.kt` + `A2uiTokens`, summarised in
-  [`azula-docs/docs/a2ui.md`](../../../docs/a2ui.md). Mirrored as constants at the
-  top of `scripts/gen.py`.
+  [`azula-docs/docs/design-system.md`](../../../docs/design-system.md) is
+  **normative** — §3 color, §7 glow/gradients, §9 brand. `Color.kt` and
+  `A2uiTokens` are derived copies, as are the constants at the top of
+  `scripts/gen.py`.
+  Note `gen.py`'s `MUTED` is `#8a8a9a`, which the design system calls
+  `contentDim` — the app's `muted`/`contentSubtle` is a *different* value
+  (`#7A7A8A`). Don't reconcile them by changing the hex; the name is the bug.
 - **Icon:** render from `azula-app/design/icon/icon.square.svg` — the **canonical
   `›a` mark**, full-bleed and opaque. Do **not** use the pre-rounded
   `icon.master.svg`/`master-*.png` (stores round it themselves), and ignore any
