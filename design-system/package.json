@@ -1,0 +1,25 @@
+{
+  "name": "@azula/design-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "azula's neon-glass design system — the canonical web implementation. Tokens are a derived copy of openspec/specs/design-system/design.md (normative).",
+  "type": "module",
+  "module": "dist/index.es.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "npm run build:js && npm run build:css && npm run build:dts",
+    "build:js": "esbuild src/index.ts --bundle --format=esm --outfile=dist/index.es.js --external:react --external:react-dom --jsx=automatic",
+    "build:css": "esbuild src/styles.css --bundle --outfile=dist/styles.css",
+    "build:dts": "tsc --emitDeclarationOnly"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "esbuild": "^0.24.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3"
+  }
+}

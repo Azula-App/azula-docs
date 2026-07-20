@@ -1,0 +1,17 @@
+/* JetBrains Mono — bundled, copied from azula-app/theme/composeResources/font/.
+   Space Grotesk is deliberately NOT bundled (matches app and site): --font-ui
+   falls back to the system sans stack. See design.md §4.1 and §11 "Accepted". */
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./jetbrainsmono_regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("./jetbrainsmono_bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}

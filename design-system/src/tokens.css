@@ -1,0 +1,125 @@
+/* azula design tokens — DERIVED COPY.
+   Normative source: azula-docs/openspec/specs/design-system/design.md.
+   Names are the canonical semantic names from that page (§3, §4, §5, §6, §7, §8),
+   kebab-cased. Do not invent values here; change design.md first. */
+
+:root {
+  /* §3.1 surfaces */
+  --bg: #070709;
+  --bg-sunken: #08080d;
+  --bg-wash: #120a18; /* gradient top stop only — never a flat fill */
+  --surface: #0a0a10;
+  --surface-subtle: #0c0c13;
+  --surface-raised: #0d0d15;
+  --surface-input: #15151d;
+  --surface-message: #15151f;
+
+  /* §3.2 outlines — always 1px */
+  --outline-faint: #1b1b24;
+  --outline-subtle: #1d1d26;
+  --outline-soft: #23232e;
+  --outline: #26262f;
+  --outline-strong: #2a2a36;
+
+  /* §3.3 brand accent */
+  --primary: #ff2d9b;
+  --primary-light: #ff6ec7;
+  --primary-dark: #c4156e;  /* gradient end stop only */
+  --primary-deep: #7a1850;  /* glyph-gradient end stop only */
+  --on-primary: #ffffff;    /* ink on a gradient primary fill */
+  --on-primary-ink: #0a0a0f; /* ink on a flat primary fill */
+
+  /* §3.4 translucent accent — the selected/active idiom */
+  --primary-wash: rgba(255, 45, 155, 0.08);
+  --primary-selected: rgba(255, 45, 155, 0.14);
+  --primary-glow-fill: rgba(255, 45, 155, 0.2);
+  --primary-edge: rgba(255, 45, 155, 0.4);
+  --primary-edge-strong: rgba(255, 45, 155, 0.6);
+
+  /* §3.5 content (text). content-faint fails AA — large text/UI only.
+     content-faintest is decorative only. */
+  --content-bright: #f3eef1;
+  --content-strong: #f0f0f6;
+  --content-high: #e6e6ee;
+  --content: #d6d6e0;
+  --content-muted: #9a9aaa;
+  --content-dim: #8a8a9a;
+  --content-subtle: #7a7a8a;
+  --content-faint: #6a6a7a;
+  --content-faintest: #5a5a6a;
+
+  /* §3.6 status */
+  --success: #52c98a;
+  --success-bright: #00ff9c; /* live/active pulse only */
+  --warning: #ffd23f;
+  --danger: #ff6b6b;
+  --accent: #3fc8ff; /* informational cyan — never compete with primary */
+
+  /* §3.7 terminal */
+  --term-text: #9effc4;
+  --term-prompt: #52c98a;
+
+  /* §3.9 scrims */
+  --scrim: rgba(0, 0, 0, 0.6);
+  --scrim-heavy: rgba(0, 0, 0, 0.9);
+
+  /* §4.1 families. Space Grotesk is unbundled by design — system sans fallback. */
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-ui: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* §4.3 type scale (size/line-height) */
+  --text-micro: 10px; --leading-micro: 14px;
+  --text-caption: 11px; --leading-caption: 15px;
+  --text-body-sm: 12px; --leading-body-sm: 17px;
+  --text-body: 13px; --leading-body: 18px;
+  --text-body-lg: 14px; --leading-body-lg: 20px;
+  --text-title: 16px; --leading-title: 22px;
+  --text-heading: 20px; --leading-heading: 26px;
+  --text-display: 24px; --leading-display: 32px;
+  --text-display-lg: 30px; --leading-display-lg: 36px;
+  --text-display-xl: 40px; --leading-display-xl: 46px;
+
+  /* §5 spacing */
+  --s2: 2px; --s4: 4px; --s6: 6px; --s8: 8px; --s10: 10px; --s12: 12px;
+  --s16: 16px; --s20: 20px; --s24: 24px; --s32: 32px; --s48: 48px;
+
+  /* §6 radius */
+  --r-xs: 5px;
+  --r-sm: 8px;
+  --r-md: 10px; /* buttons, inputs, list rows */
+  --r-lg: 13px; /* cards, code boxes */
+  --r-xl: 16px; /* modals, sheets */
+  --r-pill: 999px;
+  /* chat-only asymmetric bubbles */
+  --r-bubble-me: 15px 15px 5px 15px;
+  --r-bubble-them: 15px 15px 15px 5px;
+
+  /* §7.1 glow — always 0 0 Npx, no offset */
+  --glow-sm: 0 0 8px rgba(255, 45, 155, 0.4);
+  --glow-md: 0 0 14px rgba(255, 45, 155, 0.35);
+  --glow-lg: 0 0 18px rgba(255, 45, 155, 0.4);
+  --glow-xl: 0 0 26px rgba(255, 45, 155, 0.6);
+  --glow-green: 0 0 12px rgba(82, 201, 138, 0.4);
+
+  /* §7.2 neutral shadow — only where a surface genuinely floats */
+  --shadow-card: 0 8px 26px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 30px 70px rgba(0, 0, 0, 0.6);
+
+  /* §7.3 gradients */
+  --primary-brush: linear-gradient(135deg, #ff2d9b, #c4156e);
+  --glyph-brush: linear-gradient(#ff2d9b, #7a1850);
+  --app-background: radial-gradient(120% 80% at 50% -10%, #120a18, #070709);
+
+  /* §8 motion */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 240ms;
+  --ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  /* §10 site-local exceptions (kept deliberately — see design.md §10) */
+  --surface-code: #1a1a23; /* inline code fill */
+  --content-code: #cdd6e0; /* pre code text */
+
+  /* §3.8 decorative — A2UI renderer only */
+  --track-idle: #2f2f3c;
+}

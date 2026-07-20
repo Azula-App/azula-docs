@@ -1,0 +1,9 @@
+# design-sync machine state (the durable set — config.json, NOTES.md,
+# conventions.md, previews/, overrides/ — IS committed)
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules/
+
+# design-system build output + deps
+design-system/node_modules/
+design-system/dist/
