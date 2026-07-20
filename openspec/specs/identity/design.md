@@ -81,6 +81,21 @@ restore lands where a normal bind reads from next launch. `-mock` apps
 4. Step 2 shows the 24 words plus "copy to clipboard" (transient "✓ copied"
    for 1.4s via `AzulaState.copied`/`markCopied()`).
 
+The two-step warning-then-reveal requirement above applies to reveals
+**outside** the initial setup flow — i.e. this Settings dialog, and any other
+future reveal entry point. The `onboarding` capability's back-up step (see
+[`onboarding.md`](../onboarding/design.md)) shows the same 24 words on the
+same `exportRecoveryPhrase()` call, but directly, with no warning-only
+interstitial first: the step is only reached immediately after the user has
+just explicitly chosen "create a new identity" on the preceding fork screen,
+and that choice already *is* the deliberate first step the warning exists to
+force elsewhere. Stacking a second "are you sure" in front of a phrase the
+user just asked to see would be pure friction, not a safety gain. Both
+contexts share the same fallback for an unbound transport, though: setup's
+back-up step shows a waiting state rather than a "not ready yet" dialog, but
+neither ever fabricates or partially displays a phrase before the transport
+has actually bound.
+
 ## Restore flow (Settings → Restore from a phrase)
 
 `Settings.kt`'s `RestorePhraseDialog` + `ConnectService.importRecoveryPhrase()`
