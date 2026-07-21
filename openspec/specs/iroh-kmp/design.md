@@ -3,10 +3,10 @@
 `iroh-kmp/` (sibling repo, package `app.azula.iroh`) is a full-featured iroh SDK
 for Kotlin Multiplatform. It wraps the `iroh` 1.0 crate in a Rust + UniFFI crate
 and generates JNI/JNA + Kotlin/Native bindings with [Gobley](https://gobley.dev).
-Published to mavenLocal — and, via CI, to **Maven Central** — as
-`app.azula.iroh:iroh-kmp` (version from `iroh-kmp/gradle.properties` `VERSION_NAME`,
-currently `0.1.0`; azula-app pins it in `android-app/module.yaml` and
-`jvm-app/module.yaml`). It replaces `computer.iroh:iroh` on jvm + android and
+Published by CI to **Maven Central** as `app.azula.iroh:iroh-kmp` (version from
+`iroh-kmp/gradle.properties` `VERSION_NAME`); azula-app pins a published version
+in `network-real/module.yaml` (two entries) and `android-app/module.yaml`. It
+replaces `computer.iroh:iroh` on jvm + android and
 unblocks real iroh on Android. It began as azula's minimal transport and now
 exposes the core iroh API so other consumers can use it standalone.
 
@@ -111,6 +111,10 @@ Publishes the root KMP metadata + per-target artifacts (`-android` aar with the
 .so, `-jvm`, `-iosarm64`, `-iossimulatorarm64`, `-iosx64`). `publishToMavenLocal`
 works without GPG — signing is applied only when a signing key is present.
 
+`publishToMavenLocal` is for this SDK's own testing: **it does not feed
+azula-app**, which resolves the coordinate from Maven Central and never reads
+`~/.m2`. See "How azula-app consumes it" below.
+
 ## Notes
 
 - **Cross-host `cargoBuild*` gating (fixed 2026-07-04).**
@@ -158,13 +162,40 @@ armored private key), `SIGNING_IN_MEMORY_KEY_PASSWORD` — CI maps them to the
 
 ## How azula-app consumes it
 
-- `shared/module.yaml`: `repositories: [mavenLocal]`; `dependencies@jvmAndAndroid:
-  app.azula.iroh:iroh-kmp:0.1.0` (replaced `computer.iroh:iroh`).
-- `shared/src@jvmAndAndroid/.../IrohFfiTransport.kt`: rewritten against
-  `app.azula.iroh.*` (keeps `LineBuffer`, `SecretKeyStore`, pause/resume).
-- `android-app/module.yaml`: also depends on the SDK (mavenLocal) so MainActivity
-  can call `IrohAndroid` and the .so land in the APK.
+azula-app resolves this SDK from **Maven Central, by published version**. Its
+Amper build never consults `~/.m2`, so `publishToMavenLocal` on its own changes
+nothing app-side (a version present only locally fails to resolve, with "Unable
+to *download* checksums"). Central versions are immutable, so landing a crate
+change in the app means publishing a **new** `VERSION_NAME` and bumping the
+coordinate in both module.yaml files below — re-publishing an existing version
+is a no-op.
+
+- `network-real/module.yaml`: `app.azula.iroh:iroh-kmp:<version>` in both the jvm
+  and android dependency blocks (replaced `computer.iroh:iroh`).
+- `network-real/src@jvmAndAndroid/dev/azula/net/IrohFfiTransport.kt`: written
+  against `app.azula.iroh.*` (keeps `LineBuffer`, `SecretKeyStore`, pause/resume).
+- `android-app/module.yaml`: also depends on the SDK so MainActivity can call
+  `IrohAndroid` and the .so lands in the APK.
 - `android-app/src/MainActivity.kt`: calls `IrohAndroid.installAndroidContext`.
+
+To try an unpublished local build against the app, temporarily add a top-level
+`repositories:` block listing `- mavenLocal` to those two module.yaml files.
+Keep it out of commits: a stale local artifact would silently outrank the
+published one.
+
+### R8 keep rules ship with the AAR
+
+The `-android` AAR carries `consumer-rules.pro` (wired via `consumerProguardFiles`),
+which R8 applies automatically in any consuming app. This is not optional
+packaging polish — Gobley's bindings call through JNA, and JNA resolves fields and
+symbols from native code by their literal names (JNI `GetFieldID`, `dlsym` off a
+`Library` interface). R8 cannot see those uses and renames them by default, so
+without these rules `com.sun.jna.Pointer.peer` becomes `d`, `Native.initIDs()`
+throws `UnsatisfiedLinkError`, JNA's static initializer never recovers, and every
+later `Structure` allocation throws `NoClassDefFoundError: com.sun.jna.Native` —
+i.e. the whole FFI layer, in release builds only, with no build-time signal. The
+rules must live here because consumers cannot supply their own: Amper exposes no
+proguard/R8 config surface, and the upstream `jna` AAR ships no consumer rules.
 
 ## Verified (2026-06)
 
