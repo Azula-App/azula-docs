@@ -5,9 +5,7 @@ Defines the first-run setup flow that gates fresh installs behind an
 identity fork (create or restore), a recovery-phrase back-up step, and an
 optional persona step, before the main app opens, and how that flow adapts
 its presentation to window size.
-
 ## Requirements
-
 ### Requirement: Setup Flow Gates Fresh Installs
 The app SHALL present the setup flow before the main app on a launch where no
 previously persisted identity key exists, and SHALL NOT present it when a
@@ -110,3 +108,18 @@ existing design-system tokens; the blueprints are directions 1c (rail) and
 - **WHEN** setup is shown on a compact/phone window
 - **THEN** each step is a full-screen card with progress dots indicating
   position in the flow
+
+### Requirement: Start Sequence Is Idempotent
+The app's start sequence SHALL run at most once per process, binding at most one transport endpoint however many times it is invoked. Platforms that invoke it more than once — Android starts the state from the `Application` and again from the composition's setup gate — SHALL NOT produce a second endpoint on the same secret key.
+
+#### Scenario: Repeated start binds once
+- **WHEN** the start sequence is invoked more than once in a process
+- **THEN** the transport SHALL bind exactly one endpoint, and later
+  invocations SHALL have no further effect
+
+#### Scenario: Android starts the state twice
+- **WHEN** Android starts the state from the `Application` and again from the
+  setup gate
+- **THEN** exactly one endpoint SHALL exist, with no orphaned endpoint sharing
+  the same node id and no orphaned inbound accept loop
+
