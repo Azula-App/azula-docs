@@ -58,9 +58,10 @@ versions, and deploys on its own.
   deeplink well-known files). Sources in `src/`.
 - `iroh-kmp/` — the iroh SDK for KMP (package `app.azula.iroh`): a minimal Rust +
   UniFFI crate wrapping iroh, generated into a Kotlin Multiplatform library by
-  [Gobley](https://gobley.dev) and published to mavenLocal. `azula-app/shared`
-  consumes it (jvm + android) instead of `computer.iroh:iroh`; this is what makes
-  real iroh work on Android. See
+  [Gobley](https://gobley.dev) and published to **Maven Central** (by CI, on a
+  `v*` tag). `azula-app`'s `network-real` and `android-app` modules consume it by
+  published version instead of `computer.iroh:iroh`; this is what makes real iroh
+  work on Android. See
   [`openspec/specs/iroh-kmp/design.md`](specs/iroh-kmp/design.md).
 - `azula-docs/` — cross-repo documentation and this working agreement. Holds the
   shared CLAUDE/AGENTS files, the OpenSpec tree (`openspec/`), and the shared
@@ -122,9 +123,24 @@ Each command runs inside its own repo, not a shared root.
 - Rust (`azula-cli/`): `cargo build`.
 - Worker (`azula-site/`): `npm install && npm run typecheck`.
 - iroh SDK (`iroh-kmp/`): `./gradlew publishToMavenLocal` — needs **JDK 17**
-  (AGP 8.7; e.g. `JAVA_HOME=…/zulu-17…`), the Android NDK r28+, and Rust with the
-  Android/iOS targets. Re-run after changing the crate so azula-app picks up the
-  new artifact. See `openspec/specs/iroh-kmp/design.md`.
+  (AGP 8.7; e.g. `JAVA_HOME=…/zulu-17…`), `ANDROID_HOME` pointing at the SDK, the
+  Android NDK r28+, and Rust with the Android/iOS targets. See
+  `openspec/specs/iroh-kmp/design.md`.
+
+  **`publishToMavenLocal` does not feed azula-app.** Amper resolves
+  `app.azula.iroh:iroh-kmp` from Maven Central only — it never consults `~/.m2`
+  (a version present only there fails with "Unable to *download* checksums") —
+  and Central versions are immutable, so re-publishing an existing version is a
+  no-op for the app. To get a crate change into azula-app: bump `VERSION_NAME` in
+  `iroh-kmp/gradle.properties`, publish that **new** version to Central, then bump
+  the coordinate in `azula-app/network-real/module.yaml` (two entries) and
+  `azula-app/android-app/module.yaml`.
+
+  To try a local SDK build against the app first, temporarily add a top-level
+  `repositories:` block listing `- mavenLocal` to those two module.yaml files;
+  Amper then resolves the local artifact. Keep it out of commits — a stale local
+  artifact would silently outrank the published one, which is exactly the drift
+  that let a broken SDK ship unnoticed.
 
 ## azula device registry (MCP bridge state)
 
