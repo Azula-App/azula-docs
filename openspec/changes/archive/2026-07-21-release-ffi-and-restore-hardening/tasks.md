@@ -34,13 +34,18 @@
 
 ## 5. Land it in a shipped build
 
-- [ ] 5.1 Publish the new SDK version to Maven Central (tag-driven CI)
-- [ ] 5.2 Bump the coordinate in `azula-app/network-real/module.yaml` (two
+- [x] 5.1 Publish the new SDK version to Maven Central (tag-driven CI) —
+      `v0.1.1`, and the published AAR carries `proguard.txt`
+- [x] 5.2 Bump the coordinate in `azula-app/network-real/module.yaml` (two
       entries) and `azula-app/android-app/module.yaml`
-- [ ] 5.3 Rebuild the Android release and confirm `mapping.txt` leaves
-      `com.sun.jna.Pointer`'s fields unrenamed
-- [ ] 5.4 On-device check: restore does not crash **and** the home screen
-      reports online with a live peer code
+- [x] 5.3 Rebuild the Android release and confirm `mapping.txt` leaves
+      `com.sun.jna.Pointer`'s fields unrenamed — verified with `~/.m2`'s copy
+      moved aside, so the build provably resolved from Central; R8 still
+      renames the app's own `peerCode`/`peerStore`, confirming scoped rules
+- [x] 5.4 On-device check (Pixel 10a): no crash, `logcat -b crash` empty, home
+      screen online with peer code `4d · fox · onyx` — the code derives from the
+      restored key, so the match proves the identity was applied, not re-minted.
+      Restore-from-Settings exercised directly afterwards, also clean
 
 ## 6. Follow-ups
 
