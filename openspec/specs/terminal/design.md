@@ -412,8 +412,8 @@ safe from any thread since it's immutable once built.
   query (both BEL- and ST-terminated) replying with the background color, and
   the full `PredictionEngine` matrix (confirm, mismatch flush, alt-screen
   suppression, Enter flush, disruptive-output flush, timeout flush). Run (all
-  targets, not just jvm —
-  the emulator is pure Kotlin/Multiplatform): `./kotlin test -m terminal-api`.
+  targets, not just jvm — the emulator is pure Kotlin/Multiplatform):
+  `./check -m terminal-api`.
 - **`azula-cli/src/term.rs`** `#[cfg(test)]` — real in-process iroh integration
   tests: `term_handler_end_to_end` (two local endpoints, `echo <marker>`,
   asserts the marker returns as `Frame::Term` — proves PTY-spawn → bridge →
@@ -433,7 +433,7 @@ safe from any thread since it's immutable once built.
 
 ## Verifying changes
 
-- Engine/prediction: `./kotlin check -m terminal-api` (or `-m shared` for the
+- Engine/prediction: `./check -m terminal-api` (or `-m shared` for the
   full dependent graph) from `azula-app/`.
 - Server bridge: `cargo test` from `azula-cli/` (runs `term::tests::*`).
 - UI/end-to-end: run `azula-app/e2e/android.yaml` against `android-app-mock` —
