@@ -187,7 +187,13 @@ changing the page first, then the derived copies in §13.
 
 - Custom fonts fall back to system families until `.ttf` are added to
   `azula-app/shared/composeResources/font/`.
-- Don't commit or deploy unless asked.
+- Land finished work on `main` in the same session: once a change is
+  implemented and verified, commit it and get it onto `main` (push directly for
+  small/doc changes; merge the worktree branch for larger ones), then clean up
+  the worktree and branch. Don't leave uncommitted edits or stranded local
+  branches behind. The exception is anything that ships: azula-site
+  auto-deploys on push to `main`, and app/CLI releases are their own flow — get
+  an explicit go-ahead before a push that deploys or releases.
 - Never switch branches in the shared checkouts: sessions run from the parent
   directory (not a git root) and share each sibling repo's working tree, so an
   in-place `git checkout -b` changes files under every concurrent session.
