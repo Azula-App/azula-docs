@@ -4,9 +4,7 @@
 Defines which tool/layer owns which kind of test coverage across azula, so
 behavioral coverage accumulates in fast in-process suites and platform-level
 checks stay thin, with no scenario duplicated across layers.
-
 ## Requirements
-
 ### Requirement: Layered ownership of coverage
 Each kind of behavior SHALL be covered by exactly one layer: common unit
 tests own service/protocol/persistence logic, JVM-hosted Compose
@@ -105,3 +103,31 @@ rather than duplicated in iroh-kmp itself.
 - **WHEN** changing `iroh-kmp`
 - **THEN** `cargo check`/`cargo test` SHALL be the coverage for the crate itself,
   and consumer-facing behavior SHALL be caught by azula-app's existing suites
+
+### Requirement: The mock terminal harness SHALL NOT emit width-sensitive content before the first resize
+
+`FakeTerminalStream` SHALL NOT dump its greeting at the emulator's default 80
+columns before the window's actual size is known, so width-sensitive replayed
+mock content is not corrupted by a layout it will immediately be resized out
+of.
+
+#### Scenario: Mock harness starts in a non-default-width window
+
+- **WHEN** a mock-harness test opens a terminal in a window whose column
+  count differs from the emulator default (80)
+- **THEN** `FakeTerminalStream`'s greeting is laid out at the window's actual
+  column count, either by delaying the greeting until after the first
+  `Resize` event or by feeding a resize first
+
+### Requirement: InviteReviewSheet SHALL have Compose UI test coverage
+
+The inbound accept/decline invite-review path SHALL be covered by the shared-UI-behavior JVM Compose suite described in `openspec/specs/testing/design.md`, in addition to the existing service-layer coverage (`StrangerGateTest`, `InviteServiceTest`), driven through a `FakeTransport` capable of emitting an arbitrary inbound connection (not just its fixed one-shot "mockterm" connection).
+
+#### Scenario: Accept and decline are exercised through InviteReviewSheet
+
+- **WHEN** the JVM Compose UI test suite drives an arbitrary inbound stranger
+  connection through `FakeTransport` into `InviteReviewSheet`
+- **THEN** both the accept path (peer added to contacts, stream wired) and
+  the decline path (connection closed and forgotten) are exercised at the UI
+  layer
+

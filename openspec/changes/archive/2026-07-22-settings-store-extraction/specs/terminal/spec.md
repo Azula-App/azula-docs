@@ -9,8 +9,11 @@ personas blob).
 #### Scenario: terminalSmartInput persists independently of personas
 
 - **WHEN** a user toggles `terminalSmartInput` and relaunches the app
-- **THEN** the value is read from `SettingsStore`, not from `ProfileBook`,
-  and personas data contains no `terminalSmartInput` field
+- **THEN** the value is written to and read from `SettingsStore`, and the
+  `ProfileBook.terminalSmartInput` field no longer drives the UI — it is
+  retained only as the migration source (see the upgrade scenario below) and
+  is preserved verbatim across persona saves so an older app version installed
+  over this one still finds its setting
 
 #### Scenario: Upgrading from a pre-SettingsStore install preserves the setting
 
