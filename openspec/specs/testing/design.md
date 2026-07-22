@@ -50,9 +50,10 @@ Adding a test? Pick the **lowest** layer that can catch the failure:
 
 ## Running
 
-- Everything for a module: `./kotlin check -m <module>` (from `azula-app/`;
-  needs network for the Amper toolchain). The JVM Compose UI suite runs as
-  part of `./kotlin check -m mock-support`.
+- Everything for a module: `./check -m <module>` (from `azula-app/`; needs
+  network for the Amper toolchain). Never `./kotlin check` directly — see
+  "Known flakes" below. The JVM Compose UI suite runs as part of
+  `./check -m mock-support`.
 - Maestro Android: build/install `android-app-mock`, `maestro test
   e2e/android.yaml`.
 - Maestro iOS: `./kotlin build -m ios-app-mock -p iosSimulatorArm64`, install
@@ -74,7 +75,7 @@ Adding a test? Pick the **lowest** layer that can catch the failure:
 
 The project's Claude hooks (`.claude/` in the parent directory, per-machine;
 mirrored for compatible agents as `.agents -> .claude`) auto-run the fast suites
-on edit and queue `./kotlin check` per touched module at end of turn.
+on edit and queue `./check` per touched module at end of turn.
 
 ## Known flakes (headless test harness)
 
