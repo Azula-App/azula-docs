@@ -248,6 +248,6 @@ fails the release build with "Missing class", this is the same problem and the s
 fix.
 
 The publish workflow runs no tests on purpose: `./kotlin check` is known-flaky
-headlessly (see [`openspec/changes/stabilize-headless-test-flakes/`](../../changes/stabilize-headless-test-flakes/)), and a flaky gate that fails *after*
+headlessly (see [`changes/archive/2026-07-22-stabilize-headless-test-flakes/`](../../changes/archive/2026-07-22-stabilize-headless-test-flakes/)), and a flaky gate that fails *after*
 one of the two stores has already been fed is worse than no gate. Tests belong in PR
 CI.
