@@ -78,32 +78,67 @@ on edit and queue `./kotlin check` per touched module at end of turn.
 
 ## Known flakes (headless test harness)
 
-Two known-flaky conditions surface when running the `mock-support` gate
-(`./kotlin check -m mock-support`) in a headless/CI-like environment.
-**Neither is a code failure** — treat the gate as green on build success +
-`0 tests failed`; only new `[ FAILED ]` test lines or compile errors are real.
-A durable fix for both is tracked as the `stabilize-headless-test-flakes`
-change.
+**Run the gate as `./check -m mock-support`, never `./kotlin check` directly.**
+Almost everything below traces back to one root cause — two builds running at
+once — and `./check` takes an exclusive lock that prevents it. See
+`project.md`, "Build / verify".
 
-- **iOS simulator instability.** The `IOS_SIMULATOR_ARM64` test target
-  intermittently makes the process exit non-zero *after* all native tests
-  report `[ PASSED ]` — seen as both `exit code 149` (simulator teardown,
-  SIGTTOU-class) and `Simulator boot timeout` (the sim never boots). Gets
-  worse when two builds hit the simulator at once (e.g. a background verify
-  plus the Stop-hook's queued check). The native unit tests themselves pass;
-  it's the sim runner/teardown.
-- **`DesktopAppE2eTest` Compose-UI timing flakes.** Cases like
-  `clickingTheTerminalRowInTheSharedListOpensItsChat` and
-  `inboundOfferAutoDownloadsToComplete` throw `ComposeTimeoutException` (a
-  5000 ms `waitUntil`) under load and pass on a clean re-run. Timing-sensitive,
-  not logic bugs. Re-confirmed 2026-07-10: these two still flake, now on
-  20–30 s waits, and they do so **on a pristine baseline worktree** (1 failure
-  in 5 runs with no changes applied) — so when they fail while you're
-  reviewing a diff, check the baseline before assuming your change caused it.
-  The failure signature to look for is a bare `ComposeTimeoutException`; a
-  *different* signature (e.g. "Expected exactly '1' node but found '2'") is a
-  real bug, not this flake.
+### Concurrency is the root cause (fixed by `./check`)
 
-Durable fixes would be: gate/serialize the iOS-sim test run (or make the
-wrapper tolerate a post-`PASSED` non-zero sim exit), and raise/soften the E2E
-`waitUntil` timeouts or reduce their load sensitivity.
+Measured 2026-07-22 while implementing `stabilize-headless-test-flakes`. Two
+concurrent `./kotlin check -m mock-support` runs produce *three* unrelated-looking
+failures, all from the same collision:
+
+- **A CoreSimulator collision.** The losing run logs
+  `com.apple.CoreSimulator.SimError, code=405: Unable to boot device in current
+  state: Booted` — one build boots the sim, the other trips over it.
+- **A ~36× slowdown.** An uncontended run takes ~30 s; the same run measured
+  **1110 s** with another check alive. Most "hangs" are this.
+- **An Amper internal error.** `Internal error: java.io.IOException: Resource
+  deadlock avoided`, which fails the build outright.
+
+Serializing removes all three, and costs nothing: two concurrent runs through
+`./check` finished in **45 s** versus **53 s** unlocked, because contention
+wastes more than the parallelism buys. `./check` also tolerates the historical
+post-`PASSED` simulator exits (`exit code 149`, `Simulator boot timeout`) — but
+only when the log positively shows tests ran and passed, so a compile error is
+never suppressed. `KOTLIN_CHECK_STRICT=1` turns the tolerance off; the
+classifier's own tests are in `azula-app/test/check-classify-test.sh`.
+
+### `DesktopAppE2eTest` Compose-UI timing flakes
+
+Cases like `clickingTheTerminalRowInTheSharedListOpensItsChat` and
+`inboundOfferAutoDownloadsToComplete` have historically thrown
+`ComposeTimeoutException` under load and passed on a clean re-run (originally on
+5000 ms waits; re-confirmed 2026-07-10 at 20–30 s, 1 failure in 5 runs on a
+pristine worktree).
+
+Their waits are now 20–30 s and were **deliberately not raised again** in
+2026-07-22: raising them 5 s → 20–30 s did not stop the flakes last time, so a
+third increase is cargo-culting rather than a fix. The load these waits are
+sensitive to is precisely what `./check` now prevents. If they still flake with
+serialization in place, that is new information — reach for a root-cause fix
+(what is actually starving?), not a bigger number.
+
+**Caveat, stated plainly:** this flake did **not reproduce at all** during that
+work — 0 `ComposeTimeoutException`s across 15 sequential and 4 concurrent runs.
+So it is not demonstrated fixed; its documented trigger has been removed and it
+did not appear. Treat a fresh occurrence as a live lead, not as this known
+entry.
+
+### Matcher ambiguity — a real bug that *looks* like a timing flake
+
+`Expected exactly '1' node but found '2'` used to be listed as always-a-real-bug.
+It is a real bug, but it can present as a load-dependent flake, so it deserves
+its own entry. Found and fixed 2026-07-22 in `SettingsE2eTest`:
+
+`FakeTransport.incoming()` emits its seeded conversation on a 300 ms delay, and
+that conversation renders its own `ConvOverflowMenu` "⋮". A test matching a bare
+`hasText("⋮")` therefore sees **one** node on an idle machine and **two** under
+load — failing only when slow. The fix is to anchor the matcher
+(`hasAnyAncestor(hasTestTag("persona-row-…"))`), not to widen a timeout; the test
+now also waits for the ambiguous state deliberately, so it exercises the hard
+case every run instead of racing it.
+
+When a UI test fails only under load, check whether a matcher became ambiguous
+before assuming the machine was slow.

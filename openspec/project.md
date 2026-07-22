@@ -117,9 +117,21 @@ mirrors as symlinks rather than separate copies so the instructions cannot drift
 Each command runs inside its own repo, not a shared root.
 
 - Kotlin (`azula-app/`, Amper wrapper): `./kotlin build -m jvm-app`,
-  `./kotlin check -m shared`. Run from the `azula-app/` root (the `./kotlin`
-  wrapper is here). The wrapper downloads its toolchain + deps, so builds need
-  network — disable the command sandbox.
+  `./check -m shared`. Run from the `azula-app/` root (both wrappers are here).
+  The wrapper downloads its toolchain + deps, so builds need network — disable
+  the command sandbox.
+
+  **Run checks through `./check`, not `./kotlin check` directly.** `./check` is
+  a thin wrapper that takes an exclusive lock and passes everything else through.
+  Two concurrent checks fight over the one iOS simulator: the loser logs
+  `CoreSimError 405: Unable to boot device in current state: Booted`, and a run
+  that takes ~30 s uncontended was measured at **1110 s** while another check was
+  running. The lock makes the second caller wait instead. It also tolerates the
+  known post-`PASSED` simulator exit (exit 149 / boot timeout), but only when
+  the log positively shows tests ran and passed — a compile error emits no
+  success marker and so can never be suppressed. `KOTLIN_CHECK_STRICT=1` disables
+  that tolerance; `--no-lock` disables the lock. See
+  `openspec/specs/testing/design.md`, "Known flakes".
 - Rust (`azula-cli/`): `cargo build`.
 - Worker (`azula-site/`): `npm install && npm run typecheck`.
 - iroh SDK (`iroh-kmp/`): `./gradlew publishToMavenLocal` — needs **JDK 17**
