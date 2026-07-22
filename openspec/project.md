@@ -187,4 +187,14 @@ changing the page first, then the derived copies in §13.
 
 - Custom fonts fall back to system families until `.ttf` are added to
   `azula-app/shared/composeResources/font/`.
-- Don't commit or deploy unless asked; branch first if on `main`.
+- Don't commit or deploy unless asked.
+- Never switch branches in the shared checkouts: sessions run from the parent
+  directory (not a git root) and share each sibling repo's working tree, so an
+  in-place `git checkout -b` changes files under every concurrent session.
+  When making code changes, create a worktree instead:
+  `git -C <repo> worktree add ../.worktrees/<repo>--<change> -b <change>`,
+  work there, and `git -C <repo> worktree remove ../.worktrees/<repo>--<change>`
+  once merged. `.worktrees/` at the parent-checkout root is the shared home for
+  these (it's outside every repo, so nothing needs gitignoring). The harness's
+  automatic worktree isolation can't be used here because the parent checkout
+  isn't a git repo.
