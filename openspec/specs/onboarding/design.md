@@ -134,9 +134,34 @@ restore/persona flows (see [`identity.md`](../identity/design.md)):
 - **Back-up step.** Words come from `state.exportRecoveryPhrase()` — while it
   returns `null` (bind still in flight, or offline) the step shows a waiting
   state rather than a phrase, so nothing is fabricated. Copy uses the same
-  clipboard seam `RevealPhraseDialog` uses in Settings. "Save to password
-  manager" invokes the platform share sheet where one exists (Android/iOS);
-  on desktop JVM, which has no share sheet, the action falls back to Copy.
+  clipboard seam `RevealPhraseDialog` uses in Settings.
+
+  "Save to password manager" goes through the `PhraseSaver` expect/actual
+  (`shared/src/dev/azula/ui/PhraseSaver.kt`), which mirrors `FilePicker`'s
+  `staticCompositionLocalOf` test seam — the platform sheet is a native modal,
+  so a UI test that tapped the button would otherwise block forever. Per
+  platform:
+
+  - **Android** — `CredentialManager.createCredential` with a
+    `CreatePasswordRequest`, i.e. the real OS save sheet backed by the user's
+    installed provider. The `credentials-play-services-auth` artifact is what
+    routes this on API < 34.
+  - **iOS** — the share sheet. There is no public API to add an item to the
+    user's password manager programmatically: AutoFill's "Save Password"
+    prompt is driven by the system observing a real password field, and
+    `SecAddSharedWebCredential` has been deprecated since iOS 14.
+  - **Desktop JVM** — reports unavailable, so it falls back to Copy.
+
+  The action reports three distinct outcomes — saved, cancelled, unavailable —
+  and only *unavailable* falls back to the clipboard. Cancelling means the user
+  declined to store the phrase, so copying it anyway would put the identity key
+  somewhere they didn't ask for; and the fallback label says "copied instead",
+  never "saved", since claiming a vault save that didn't happen would leave the
+  user believing the identity key is backed up when it isn't. Copy and save
+  carry independent feedback: `state.copied` is a single app-wide flash shared
+  with Settings/Connect/Sidebar, so hanging both off it made tapping one light
+  up the other.
+
   Continue is disabled until the user checks "I've saved my recovery
   phrase"; "back up later" skips that gate entirely and advances
   immediately.
