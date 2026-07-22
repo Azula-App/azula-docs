@@ -7,9 +7,7 @@ glyph-width accounting, speculative local echo, key encoding, terminal
 identity announcement, and mobile smart input — so that real-world TUIs
 (vi, top, htop, less, nano, and AI coding-agent CLIs) render and respond
 correctly over a round-trip network connection.
-
 ## Requirements
-
 ### Requirement: VT-100/Xterm State Machine Coverage
 The emulator SHALL implement a VT-100/xterm-compatible state machine
 sufficient to run vi, top, htop, less, and nano, including cursor
@@ -184,3 +182,26 @@ scrollback cap.
 - **WHEN** the terminal switches between the primary and alternate screen
   while a selection is active
 - **THEN** the selection SHALL be cleared
+
+### Requirement: Terminal settings SHALL persist via a dedicated SettingsStore
+
+Terminal-related settings (starting with `terminalSmartInput`) SHALL persist
+through a dedicated `SettingsStore`, not by piggybacking on `ProfileBook` (the
+personas blob).
+
+#### Scenario: terminalSmartInput persists independently of personas
+
+- **WHEN** a user toggles `terminalSmartInput` and relaunches the app
+- **THEN** the value is written to and read from `SettingsStore`, and the
+  `ProfileBook.terminalSmartInput` field no longer drives the UI — it is
+  retained only as the migration source (see the upgrade scenario below) and
+  is preserved verbatim across persona saves so an older app version installed
+  over this one still finds its setting
+
+#### Scenario: Upgrading from a pre-SettingsStore install preserves the setting
+
+- **WHEN** an existing install with `terminalSmartInput` stored in its
+  personas blob launches after upgrading past this change
+- **THEN** the value is migrated into `SettingsStore` on first launch and the
+  user's prior choice is preserved
+
