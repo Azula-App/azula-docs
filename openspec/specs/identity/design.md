@@ -40,7 +40,7 @@ Verified against canonical BIP-39 vectors in
 `azula-app/core/test/RecoveryPhraseTest.kt`: all-zero entropy →
 `"abandon" × 23 + "art"`, all-`0xff` → `"zoo" × 23 + "vote"`, 50 round-trips,
 and negative cases (bad checksum, unknown word, wrong count). Run via
-`./kotlin check -m core` from `azula-app/`.
+`./check -m core` from `azula-app/`.
 
 ## Where the key lives per platform
 
@@ -136,7 +136,7 @@ has actually bound.
 
 ## Verifying changes here
 
-- `azula-app/core/test/RecoveryPhraseTest.kt` via `./kotlin check -m core`.
+- `azula-app/core/test/RecoveryPhraseTest.kt` via `./check -m core`.
 - Manual: reveal a phrase on one install, restore it into a second (or after
   clearing app data) → confirm the node id/"your code" matches and a peer with
   the original ticket can still reach it.

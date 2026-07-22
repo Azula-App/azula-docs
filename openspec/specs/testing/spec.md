@@ -48,7 +48,7 @@ identically across all three platforms.
 
 #### Scenario: A shared-UI test is added
 - **WHEN** a new Compose UI test is added under `mock-support/test@jvm/`
-- **THEN** it SHALL run as part of `./kotlin check -m mock-support` on JVM, and
+- **THEN** it SHALL run as part of `./check -m mock-support` on JVM, and
   SHALL NOT be re-implemented as an Android-instrumented or iOS UI-test target
 
 ### Requirement: Native OS surfaces require Maestro, not in-process injection
@@ -80,7 +80,7 @@ runnable in CI on push/PR.
 
 #### Scenario: Running azula-app coverage
 - **WHEN** verifying a module in `azula-app`
-- **THEN** `./kotlin check -m <module>` SHALL run that module's unit tests, and
+- **THEN** `./check -m <module>` SHALL run that module's unit tests, and
   for `mock-support` SHALL additionally run the JVM Compose UI suite
 
 #### Scenario: Running azula-cli coverage
