@@ -311,8 +311,21 @@ Always `0 0 Npx` with **no offset**. Light comes from the accent, not from above
 | `glowXl` | `0 0 26px rgba(255,45,155,.60)` |
 | `glowGreen` | `0 0 12px rgba(82,201,138,.40)` |
 
-In Compose, glow is a colored shadow:
-`shadow(10.dp, rMd, spotColor = primary, ambientColor = primary)`.
+In Compose, glow is **painted, not cast**: `Modifier.azulaGlow(shape, radius,
+color, alpha)` draws the halo behind the node as nested translucent rounded
+rects. `radius` and `alpha` come straight from the table above — the defaults,
+`8.dp` @ `.40`, are `glowSm`. The first cut defaulted to `glowLg`'s 18dp and read
+far too heavy on-device. The halo paints *outward* from the node's bounds,
+so a call site flush against a clipping ancestor (`azulaCard`, `verticalScroll`)
+needs `radius` of padding for it to show in full.
+
+`Modifier.shadow` **cannot** express these tokens, at any elevation. It defers to
+the platform shadow system, whose spot component is displaced away from a light
+source above the window and grows with the node's distance down the screen —
+precisely the offset the token forbids. Its `spotColor` / `ambientColor` also
+require API 28+, and are ignored outright on iOS and JVM, where the magenta glow
+degrades to a black drop shadow. Reach for `shadow` only for the neutral,
+genuinely-offset shadows in §7.2.
 
 ### 7.2 Neutral shadow
 
@@ -358,7 +371,7 @@ have fit any of them.
 | **Raised card** | `surfaceRaised` | `outlineSoft` | `Modifier.azulaCard(nested, shape)` |
 | **Input surface** | `surfaceInput` | `outline` | `Modifier.azulaInputSurface(shape)` |
 | **Muted panel** | `surfaceSubtle` | `outlineSubtle` | `Modifier.azulaMutedPanel(shape)` |
-| **Primary button** | `primaryBrush` + glow | — | `Modifier.azulaButtonSurface(variant, shape)` |
+| **Primary button** | `primaryBrush` over an `azulaGlow` halo (§7.1) | — | `Modifier.azulaButtonSurface(variant, shape)` |
 | **Glow halo** | `primaryGlowFill`→`primaryWash` | `primaryEdge` | `Modifier.azulaGlowHalo(shape)` |
 
 A site qualifies for a recipe only if fill, border **and** paint order all match. A
@@ -590,20 +603,26 @@ Cross-reference with [`openspec/changes/`](../../changes/) before structural wor
 9. ~~**Contrast: `contentFaint` on small text**~~ — 23 direct call sites promoted
    to `contentDim`, plus the 9 sub-12sp consumers of the `A2uiTokens.mutedFaint`
    alias moved to the new `mutedSmall`. See §3.5.
+10. ~~**Glow prescribed as an elevation shadow**~~ — §7.1 defined the token as
+    `0 0 Npx` and then prescribed `shadow(…, spotColor, ambientColor)`, which
+    cannot produce it: the spot shadow is offset by a light above the window,
+    and the colors need API 28+ and are dropped on iOS/JVM. The app had already
+    moved to the painted `azulaGlow` halo; §7.1 and §7.5 now prescribe it. This
+    one was the *page* drifting from the code, not the usual direction.
 
 ### Open
 
-10. **Component primitives — partially done.** Five extensions now exist in
+11. **Component primitives — partially done.** Five extensions now exist in
     `theme/.../Modifiers.kt` and back the A2UI renderer (§7.5). 16 hand-rolled
     surfaces migrated; roughly 20 remain, each skipped for a specific reason —
     border-only with no fill, conditional fills, stateful chips, or genuinely
     bespoke. Those need per-site design decisions, not a sweep.
     `BasicTextField` is still hand-built in 3 places.
-11. **App/site code styling diverges** — app `codeBlock` `#070709` vs site
+12. **App/site code styling diverges** — app `codeBlock` `#070709` vs site
     `--surface-code` `#1a1a23`. See §10.
-12. **Half-pixel type on the site** — `13.5px` / `12.5px` survive on 8 lines in
+13. **Half-pixel type on the site** — `13.5px` / `12.5px` survive on 8 lines in
     dense inline layouts. Folding them to the §4.3 scale needs visual QA.
-13. **No automated visual regression testing.** The token work has now been
+14. **No automated visual regression testing.** The token work has now been
     verified by hand on all three platforms — see below for what that covered and
     what it did not. What's still missing is *automated* coverage: nothing
     diffs screenshots, so the next sweep has no safety net. Golden-image tests
