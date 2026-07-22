@@ -66,6 +66,9 @@ Implement tasks from an OpenSpec change.
    - Show which task is being worked on
    - Make the code changes required
    - Keep changes minimal and focused
+   - If the work needs a branch, use a git worktree in the affected repo (see
+     the Conventions in `openspec/project.md`) — never switch branches in the
+     shared checkout
    - Mark task complete in the tasks file: `- [ ]` → `- [x]`
    - Continue to next task
 
