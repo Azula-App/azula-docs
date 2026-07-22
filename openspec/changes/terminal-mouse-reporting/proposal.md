@@ -1,3 +1,17 @@
+## Status note (added at implementation time)
+
+The premise below had drifted. Most of this change had already landed
+out-of-band in azula-app `de16ee3` ("Tech-debt cleanup: test stabilization,
+terminal follow-ups, key encryption"): mode tracking, `encodeMouseReport`
+(SGR + legacy X10, motion flag), the alt-screen press/release + wheel wiring,
+and the encoder unit tests were all in place — mouse reporting was **not**
+"parsed-and-ignored" any more. What that commit explicitly deferred, and what
+this change actually completed, is drag-motion reporting for `?1002`/`?1003`
+(plus releasing at the drag's final cell rather than the press cell). The delta
+spec was rewritten to match the shipped scope — alt screen only, left button
+only, no button-less hover motion — instead of asserting the broader claim the
+original draft made.
+
 ## Why
 
 The smart-input / selection / scrollback / persistent-sessions terminal work
