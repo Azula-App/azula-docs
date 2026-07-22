@@ -345,7 +345,70 @@ cell-grid model instead (`terminal-api/.../TermSelection.kt`):
   `AltScreenWheelScroll`) translate to arrow keys — one arrow per row of
   travel, 3 per wheel notch, rate-capped, honoring DECCKM
   (`applicationCursorKeys`), direction chosen to match `less`. Scroll-arrows
-  are suppressed while a selection is active.
+  are suppressed while a selection is active, and replaced entirely by real
+  mouse reports when the program has asked for them (next section).
+
+## Mouse reporting
+
+Mouse-aware TUIs (claude's CLI, vim, htop) ask for raw pointer events with the
+xterm DECSET modes. `TerminalEmulator.setModes` tracks them:
+
+| Mode | Meaning | Surfaced as |
+| --- | --- | --- |
+| `?1000` | X10/normal — button transitions only | `mouseTrackingMode = NORMAL` |
+| `?1002` | button-event — adds motion while a button is held | `BUTTON_EVENT` |
+| `?1003` | any-event — adds button-less hover motion too | `ANY_EVENT` |
+| `?1006` | SGR extended coordinates | `mouseSgrEncoding = true` |
+
+`?1000`/`?1002`/`?1003` are mutually exclusive (one `mouseTrackingMode`), and a
+DECRST for a mode that isn't the active one is a no-op — matching xterm's
+independent per-mode reset. RIS clears both properties.
+
+`encodeMouseReport` (`MouseReport.kt`) turns one event into wire bytes:
+
+- **SGR** (`?1006` on): `ESC [ < Cb ; Cx ; Cy M` for press/motion, the same
+  with a lowercase final `m` for release. Preferred — no coordinate ceiling,
+  press and release are unambiguous, and the button id survives the release.
+- **Legacy X10** (the fallback): `ESC [ M Cb Cx Cy`, one byte each, value + 32.
+  Coordinates clamp at 223 (a byte can't carry more) and a release has no real
+  button id — xterm's fixed "released" code 3 is sent instead.
+
+`Cb` is the button (left 0, middle 1, right 2; wheel notches are xterm's
+synthetic buttons 4/5 → 64/65), plus 32 when the report is drag motion. A wheel
+notch is never a motion report and has no release — one report per notch.
+
+**Where it's wired.** `AltScreen` in `Terminal.kt`, and only there: every TUI
+that turns mouse tracking on already runs full-screen on the alt screen, so the
+primary/scrollback screen keeps its selection and scroll gestures
+unconditionally. While `mouseTrackingMode != OFF` the alt screen swaps its
+swipe→arrow-keys mapping — and `LiveTerminalView` its tap-to-focus and
+drag-to-select gestures — for a raw `awaitEachGesture` that sends:
+
+- a press on pointer-down and a release on lift (xterm's "click" is just that
+  pair — there's no separate click event on the wire);
+- a motion report per **grid cell crossed** while held, under `?1002`/`?1003`
+  only (`MouseTrackingMode.reportsDragMotion`). Per cell, not per touch sample:
+  a report per pixel of travel would flood the PTY, and xterm itself only emits
+  on a cell change;
+- one wheel report per notch on desktop, through the same
+  `altScreenWheelScroll` expect/actual the scroll-arrow mapping uses.
+
+The release is always sent, including when the gesture is cancelled — a TUI left
+holding a phantom button-down stays stuck. Pixel→cell conversion is
+`mouseCellAt`, clamped to the live grid (read fresh per sample, so a resize
+mid-drag doesn't send stale coordinates) so a touch in the padding or a drag off
+the edge still names a real cell.
+
+**Known gaps** — deliberate, and the reason the spec scopes the requirement the
+way it does:
+
+- Only the primary/left button is reported. Touch has no others, and the
+  desktop wheel is the only non-left source plumbed in.
+- Button-less **hover** motion — the one thing `?1003` adds over `?1002` — is
+  never reported: touch has no hover, and no desktop move events reach
+  `AltScreen`. In practice `?1003` behaves as `?1002`.
+- Modifier keys (shift/ctrl/meta) are not encoded; every report is unmodified.
+- No mouse reporting on the primary screen.
 
 ## Persistent sessions — attach, detach, replay
 
@@ -409,11 +472,14 @@ safe from any thread since it's immutable once built.
   a LEAD/TRAIL layout assertion; and a regression pinning claude's `❯` prompt
   chevron to single-width inside a DECSTBM-scrolled redraw, the real bug
   behind arrow-key-triggered redraws landing on the wrong row), an OSC 11
-  query (both BEL- and ST-terminated) replying with the background color, and
-  the full `PredictionEngine` matrix (confirm, mismatch flush, alt-screen
+  query (both BEL- and ST-terminated) replying with the background color,
+  mouse reporting (mode tracking + RIS reset; the SGR, legacy-X10 and motion
+  wire vectors; `reportsDragMotion` per mode; `mouseCellAt` mapping and
+  clamping — the gesture wiring itself is only covered by the manual check in
+  "Verifying changes"), and the full `PredictionEngine` matrix (confirm, mismatch flush, alt-screen
   suppression, Enter flush, disruptive-output flush, timeout flush). Run (all
-  targets, not just jvm —
-  the emulator is pure Kotlin/Multiplatform): `./kotlin test -m terminal-api`.
+  targets, not just jvm — the emulator is pure Kotlin/Multiplatform):
+  `./check -m terminal-api`.
 - **`azula-cli/src/term.rs`** `#[cfg(test)]` — real in-process iroh integration
   tests: `term_handler_end_to_end` (two local endpoints, `echo <marker>`,
   asserts the marker returns as `Frame::Term` — proves PTY-spawn → bridge →
