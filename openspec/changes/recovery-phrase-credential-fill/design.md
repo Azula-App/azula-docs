@@ -83,6 +83,11 @@ push to main.
   the picker still shows the app/domain, and in practice a user has one; but
   this is the first place the empty-id decision has a visible cost, and it
   should be re-examined against a real provider sheet rather than assumed fine.
+  First evidence in: Apple's own Passwords app refuses a username-less entry
+  without an "Are you sure you want to save this password without a user name?"
+  confirmation. That's a save-path prompt, not a fill-path one, so it doesn't
+  block this change — but it confirms the cost is real and visible, and that a
+  provider may treat the entry as malformed rather than merely unlabelled.
 - **The UIKit interop is the riskiest piece here.** It embeds a native view in
   the Compose tree, depends on undocumented Apple heuristics, and per the
   YouTrack thread needs colour-matching that will drift from the design system
@@ -91,6 +96,16 @@ push to main.
 - **A provider returning a truncated or altered phrase fills silently wrong
   input** → the existing checksum validation catches it and shows the inline
   error, which is precisely why fill must not auto-commit.
+- **Autocorrect-off may suppress the very AutoFill affordance iOS needs.** The
+  native field sets `autocorrectionType`/`spellCheckingType` to `no` so iOS
+  can't "correct" BIP-39 words into a failing checksum — but that also hides the
+  QuickType bar, which is where iOS surfaces the password suggestion. Observed
+  on the simulator: focusing the field brings up the keyboard with no bar at
+  all. Whether the AutoFill row is exempt from that suppression is undocumented
+  and could not be settled on the simulator (a debug-signed build doesn't verify
+  associated domains, so an absent suggestion is ambiguous) → this is the first
+  thing to test on a physical iPhone, and if AutoFill doesn't appear, trading
+  autocorrect back on is the trade to evaluate.
 - **Asset links change behavior for already-saved credentials** in ways that
   depend on provider implementation → verify against a phrase saved *before*
   the relation is published, not only after.
