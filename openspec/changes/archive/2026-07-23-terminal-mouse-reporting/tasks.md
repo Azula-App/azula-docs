@@ -37,9 +37,13 @@ note in `proposal.md`.
       vector, `reportsDragMotion` per mode, and `mouseCellAt` mapping/clamping
       alongside the existing SGR + X10 + mode-tracking tests.
       `./check -m terminal-api` → 102 passed.
-- [ ] 4.2 Manual/e2e check against a real mouse-reporting TUI (e.g. claude's
-      TUI) confirming clicks/wheel now register. **Handed back — needs a real
-      device driving a real mouse-reporting TUI; not something the agent can
-      verify.** Worth checking specifically: a click lands on the cell under the
-      finger, a drag selects/scrolls in the TUI (not just the press point), and
-      a desktop wheel notch scrolls the TUI rather than sending arrow keys.
+- [x] 4.2 Verified on desktop against real mouse-reporting TUIs: a **click**
+      lands on the right cell (htop, clicking rows), and a **drag** extends a
+      selection cell-by-cell rather than jumping to the press point (vim
+      `:set mouse=a`, confirmed entering `-- VISUAL --` and extending across
+      lines — only reachable via `?1002` motion reports). The **wheel** notch
+      was *not* exercised hands-on; it drives the same unit-tested
+      `sendMouseReport` path as the click (only the button code differs,
+      `WHEEL_UP`/`WHEEL_DOWN`), so the residual risk is just the desktop
+      scroll-event plumbing into it. Worth a glance if wheel-in-TUI ever seems
+      off.

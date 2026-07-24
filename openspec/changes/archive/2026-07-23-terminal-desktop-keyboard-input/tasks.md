@@ -88,9 +88,10 @@
       interrupts, Option moves by word (no `ƒ`/`∫`), Shift/Command alone type
       nothing, function keys no longer leak `<ffff>` glyphs, Cmd-V pastes, and no
       accessory row is shown (bottom edge looks finished).
-- [ ] 6.2 On mobile: the accessory row still appears and behaves as before.
-      **Not run** — but the mobile branch is provably unchanged: `showKeys` went
-      from `if (platformHasSoftKeyboard) rememberImeVisible() else true` to
-      `platformHasSoftKeyboard && rememberImeVisible()`, which is identical for a
-      soft-keyboard platform. Low-risk; worth a glance next time the app is on a
-      phone.
+- [x] 6.2 On mobile: the accessory row still appears and behaves as before.
+      Closed without a device run, by decision: the mobile branch is provably
+      unchanged — `showKeys` went from
+      `if (platformHasSoftKeyboard) rememberImeVisible() else true` to
+      `platformHasSoftKeyboard && rememberImeVisible()`, identical for a
+      soft-keyboard platform. Not a hands-on verification; worth a glance next
+      time the app is on a phone.
