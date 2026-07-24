@@ -63,6 +63,71 @@ Adding a test? Pick the **lowest** layer that can catch the failure:
   otherwise grabs any connected physical iPhone.
 - Screenshots land in `e2e/screenshots/` (gitignored).
 
+## Isolating a second `jvm-app` desktop instance (`AZULA_DATA_DIR`)
+
+`jvm-app` hardcodes its storage: files under `~/.azula` (`network-real`,
+`sync-real`, `persistence-real`) and, on macOS, keys in the login Keychain
+(service `app.azula.identity`, accounts `endpoint_key`/`root_secret`). With
+no override, there was no way to run a second desktop instance for real
+device-linking/sync testing against the live network without mutating (or
+being confused with) the developer's own identity — `jvm-app-mock`'s
+in-memory `FakeTransport` doesn't help here since it never touches real iroh
+networking. This mirrors azula-cli's `AZULA_KEY_DIR`/`AZULA_REGISTRY_DIR`/
+`AZULA_MAILBOX_LOG_DIR` overrides (`azula-cli/src/identity.rs`,
+`registry.rs`) — same naming convention, same "unset means unchanged"
+guarantee, so the two repos feel like one system.
+
+Setting `AZULA_DATA_DIR=<scratch-dir>` before launching `jvm-app` redirects
+**all** of its desktop state under that directory instead of `~`:
+
+- `<scratch-dir>/.azula/…` — peers, settings, profiles, invitations, blobs,
+  messages, the sync event log (everywhere the code used to read
+  `~/.azula/…`)
+- `<scratch-dir>/Downloads/Azula/` — exported media (was `~/Downloads/Azula/`)
+- `<scratch-dir>/.azula/endpoint.key`, `<scratch-dir>/.azula/root.key` — the
+  node secret and root secret, as **plain files**, even on macOS
+
+That last point is deliberate, not an oversight: redirecting only the files
+would be a trap, since the app would still find (and could silently mutate)
+the real identity's Keychain entries the moment the override was forgotten.
+Rather than namespace the Keychain service string per override, an
+`AZULA_DATA_DIR` override **bypasses the real macOS Keychain entirely** and
+falls back to file-based key storage under the scratch dir. Reasoning:
+
+- A scratch instance must be fully contained — `rm -rf $AZULA_DATA_DIR` has
+  to remove *everything* it touched. A namespaced Keychain entry would
+  survive that and accumulate across runs, with no directory to delete to
+  clean it up.
+- It never prompts for Keychain unlock/access, which a CI box or a sandboxed
+  agent may not be able to satisfy at all.
+- The isolation code path is identical to the existing non-macOS fallback
+  (`FileSecretKeyStore`), so there's one fewer code path to trust rather than
+  a new namespaced-Keychain path to get right.
+
+Unset, behavior is byte-for-byte what it was before this override existed —
+real `~/.azula`, the real Keychain on macOS — which is the property that
+makes this safe to ship: a developer who never sets `AZULA_DATA_DIR` sees no
+change at all. See `network-real/src@jvmAndAndroid/dev/azula/net/IrohFfiTransport.kt`
+(`azulaHomeDir`, `defaultDesktopKeyStore`) and the identically-named/documented
+helper duplicated in `sync-real` and `persistence-real` (separate Amper
+modules, no shared internal boundary) for the implementation, and
+`network-real/test@jvm/dev/azula/net/AzulaDataDirTest.kt` /
+`persistence-real/test@jvm/AzulaDataDirTest.kt` /
+`sync-real/test@jvm/AzulaDataDirTest.kt` for the coverage (unset parity,
+override redirection, Keychain bypass, and two overrides never interfering).
+
+To run two independent desktop instances against the real network side by
+side:
+
+```sh
+AZULA_DATA_DIR=/tmp/azula-instance-a ./kotlin run -m jvm-app &
+AZULA_DATA_DIR=/tmp/azula-instance-b ./kotlin run -m jvm-app &
+```
+
+Each instance mints/keeps its own node identity under its own scratch dir and
+neither can read, write, or collide with the other's — or with a developer's
+real, unset-override `~/.azula` install.
+
 ## Other repos
 
 - `azula-cli` — `cargo test --workspace` (in-process iroh integration tests:
@@ -76,6 +141,66 @@ Adding a test? Pick the **lowest** layer that can catch the failure:
 The project's Claude hooks (`.claude/` in the parent directory, per-machine;
 mirrored for compatible agents as `.agents -> .claude`) auto-run the fast suites
 on edit and queue `./check` per touched module at end of turn.
+
+## QUIC transport wiring needs real-endpoint tests (the link/0 lesson)
+
+An in-memory duplex (`tokio::io::duplex`, Kotlin pipes) is live in both
+directions the moment it exists. A real QUIC connection is not: a freshly
+opened bi-stream is **not surfaced to the accepting side until the dialer
+writes bytes on it** — iroh's `accept_bi()` simply doesn't resolve. No
+duplex test can tell the two apart, so duplex tests are structurally blind
+to stream-establishment bugs, no matter how thorough their frame-level
+coverage.
+
+Proven concretely by `azula/link/0` (multi-device-identity task 6.7,
+2026-07-24): the spec had the *accepting* side send the first frame
+(`LinkHello`), so over a real connection the acceptor parked in
+`accept_bi()` while the dialer blocked reading a hello that could never be
+sent. Device linking never worked on any real device — 3/3 hardware
+attempts timed out — while every protocol unit test in both languages
+stayed green. The fix (the dialer writes one priming blank line after
+opening the stream; both languages' frame readers skip blanks) is
+documented at `LINK_ALPN` in `azula-cli/src/link.rs`.
+
+So the first design question for every new protocol is **"who writes
+first?"**: if the accepting side is specified to speak first — or either
+side's first action is a read — the protocol deadlocks over QUIC exactly
+as specified. Prefer a dialer-writes-first opening (a mutual hello, like
+`azula/sync/0`); otherwise mandate a priming write from the dialer, like
+link/0's blank line. Close has the mirror-image hazard: a QUIC close
+discards stream data still in flight, so a handler whose *last* frame
+matters must wait for acknowledgement (`SendStream::finish()` +
+`stopped()`) before returning — found by the rootless-link real-transport
+test, where the router's close silently discarded the `LinkReject`.
+
+**Rust (azula-cli): every ALPN gets at least one real-two-endpoint test.**
+Two in-process iroh endpoints (`presets::Minimal`, no relays), a `Router`
+accepting with the same handler production binds, a real dial. One "the
+session completes over a real connection" smoke test per protocol; the
+edge-case depth stays on the fast duplex tests. Template:
+`link_handshake_completes_over_a_real_quic_connection` in `src/link.rs`;
+siblings in `sync.rs`, `mailbox_role.rs`, `mcp.rs`, and `term.rs`'s
+long-standing end-to-end suite.
+
+**Kotlin (azula-app): equivalent coverage is currently impossible — so a
+green `./check` is NOT sufficient evidence for a change touching the
+Kotlin transport wiring.** The iroh-kmp FFI (`IrohEndpoint.bind`) exposes
+no relay-free/`Minimal` preset and no direct-address connect (dialing is
+ticket-only), so a two-real-endpoint Kotlin test would bind real sockets
+and depend on live network/relay behaviour; no Kotlin test in the tree
+binds an endpoint today, and the Android/iOS `./check` legs couldn't run
+one at all. Stated plainly: **the Kotlin transport wiring's only coverage
+of QUIC stream-establishment semantics is an on-device pass, so any change
+touching who-writes-first, stream open/close, or ALPN wiring on the Kotlin
+side requires one before it can be called verified.** This is precisely
+how 6.7 — a total, every-device failure of device linking — shipped behind
+a fully green two-language suite and was found only by plugging in a
+phone.
+
+If iroh-kmp later exposes a minimal/relay-free preset and direct-address
+connect, Kotlin real-transport tests become feasible and this exception
+shrinks away — a genuine testability improvement to that repo, worth
+proposing.
 
 ## `internal` is off-limits from tests (Amper + Kotlin/Native)
 

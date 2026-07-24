@@ -121,6 +121,16 @@ Each command runs inside its own repo, not a shared root.
   The wrapper downloads its toolchain + deps, so builds need network — disable
   the command sandbox.
 
+  **Never run `./kotlin run -m jvm-app` (or the built app) unisolated against
+  the real network for anything other than your own primary identity** — it
+  hardcodes `~/.azula` and, on macOS, the login Keychain. To stand up a second,
+  disposable desktop instance (device-linking/sync testing, a second "device"
+  on the same machine), set `AZULA_DATA_DIR=<scratch-dir>` first — it redirects
+  every file **and** key `jvm-app` would otherwise write, unset is byte-for-byte
+  today's behavior, and two different scratch dirs never interfere. See
+  `openspec/specs/testing/design.md`, "Isolating a second `jvm-app` desktop
+  instance", for the full mechanism and rationale.
+
   **Run checks through `./check`, not `./kotlin check` directly.** `./check` is
   a thin wrapper that takes an exclusive lock and passes everything else through.
   Two concurrent checks fight over the one iOS simulator: the loser logs
