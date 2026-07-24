@@ -45,12 +45,37 @@
 - [ ] 4.3 Bottom-edge look without the row — needs eyes on the running app
       (part of 6.1).
 
+## 4b. Bare modifiers & Command (found in device testing)
+
+- [x] 4b.1 A modifier pressed alone leaked a character: macOS Skiko reports a
+      printable-range codePoint for the modifier press itself (reported symptom:
+      tapping Shift, and Command, inserted stray chars). Guard added — a
+      `MODIFIER_KEYS` identity check returns null before any other branch.
+- [x] 4b.2 Command/Super is the *application* modifier, not a terminal one, so
+      any Meta chord returns null (Cmd-A would otherwise have sent "a"). Cmd-V
+      paste is still intercepted upstream in `RawTerminalInput.jvm.kt` before
+      this runs. `keyEventToBytes` now threads `meta = ev.isMetaPressed`.
+
+## 4c. Function keys & non-text codepoints (found in device testing)
+
+- [x] 4c.1 Function keys, the fn key, and right Option dropped `<ffff>`-style
+      glyphs into the shell: macOS reports them as Private-Use-Area codepoints
+      (F1 = 0xF704, Apple logo 0xF8FF) or the 0xFFFF non-character, and the
+      printable fallback (`codePoint >= 0x20`) forwarded them. Replaced with a
+      whitelist (`isTextCodePoint`) excluding C1 controls, both PUA blocks, and
+      non-characters — so any special key is dropped by construction, not by
+      enumeration.
+- [x] 4c.2 F1–F12 (and Insert) now send their xterm sequences (`ESC O P` … `ESC
+      [ 24 ~`) instead of leaking — they work rather than merely not-breaking.
+
 ## 5. Tests
 
 - [x] 5.1 `terminal-api/test/KeyEncodingTest.kt` — Ctrl-C (both reported
       shapes), Ctrl-A/-D/-Z, the four specials, Option-f, `Alt-Left`,
-      `Ctrl-Alt-C`, and the unhandled-Alt case. In **common** test code, so it
-      runs on all three platforms, not just jvm.
+      `Ctrl-Alt-C`, the unhandled-Alt case, bare-modifier and Command-combo
+      vectors, F1–F12/Insert sequences, PUA/non-character/C1 rejection, and a
+      pass-through check for accented Latin, CJK, and emoji. In **common** test
+      code, so it runs on all three platforms. 120 tests total (was 102).
 - [x] 5.2 `mobileSmartInputExclusionsStillHold` pins that `includePrintable` /
       `includeBackspace = false` still suppress those, and that a Ctrl chord
       still resolves on that path.
