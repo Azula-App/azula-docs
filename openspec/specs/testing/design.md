@@ -77,6 +77,89 @@ The project's Claude hooks (`.claude/` in the parent directory, per-machine;
 mirrored for compatible agents as `.agents -> .claude`) auto-run the fast suites
 on edit and queue `./check` per touched module at end of turn.
 
+## `internal` is off-limits from tests (Amper + Kotlin/Native)
+
+**A `test/` source set may not reference an `internal` declaration from its own
+module's `src/`.** JVM and Android compile it happily; the Kotlin/Native leg
+rejects it. This is an Amper limitation, not a rule we chose.
+
+The failure is nasty to read, because the passing legs run first:
+
+```
+[         8 tests successful      ]          ← testJvm / testAndroid*, all green
+…
+ERROR :core:compileIosSimulatorArm64TestDebug core/test/Foo.kt:1:23:
+    error: cannot access 'object Sha256 : Any': it is internal in file.
+ERROR: cinterop failed                        ← the last line, and a red herring
+```
+
+`cinterop failed` is what `./check` prints on the way out; it has nothing to do
+with cinterop. Scroll up for `it is internal in file`.
+
+### Why
+
+Amper wires the test compilation to the main one as a *friend* for JVM, JS,
+Wasm and metadata, but not for Native. In the shipped CLI dist
+(`~/Library/Caches/JetBrains/Kotlin/cli/kotlin-cli-<v>/lib/amper-cli-jvm.jar`),
+`org.jetbrains.amper.compilation.KotlinCompilerArgsKt` declares a `friendPaths`
+parameter on `kotlinJvmCompilerArgs`, `kotlinJsCompilerArgs`,
+`kotlinWasmCompilerArgs` and `kotlinMetadataCompilerArgs` — and **not** on
+`kotlinNativeCompilerArgs`. Correspondingly `JvmCompileTask`,
+`MetadataCompileTask`, `Js*`, `Wasm*` and `Web*` all reference `friendPaths`,
+while `NativeCompileKlibTask` and `NativeLinkTask` never mention it. So neither
+`-Xfriend-modules=` nor `-friend-modules=` is ever passed to the Native
+compiler. Verified in 0.11.0 (the version `azula-app/kotlin` pins) and 0.11.1
+(the newest stable); 0.12.0 is dev-builds only.
+
+Upstream, unresolved as of 2026-07-24: [KTC-4173 "Kotlin Native compilation
+doesn't respect friends' relationship"](https://youtrack.jetbrains.com/issue/KTC-4173)
+(Open, and the exact `iosSimulatorArm64` case) and
+[KTC-5395 "internal declarations inaccessible in native test source
+sets"](https://youtrack.jetbrains.com/issue/KTC-5395) (Submitted). The IDE half
+of this — internal references painted red in tests,
+[KTC-4141](https://youtrack.jetbrains.com/issue/KTC-4141) — was fixed in
+IntelliJ 2025.1.1; the compiler half was not.
+
+### Scope
+
+Every module with a `test/` source set, since all of them target
+`iosArm64/iosSimulatorArm64/iosX64`: `a2ui`, `core`, `link`, `markdown`,
+`mock-support`, `network-api`, `shared`, `terminal-api`. Confirmed by probe in
+both `core` (via `Sha256`) and `a2ui` (via `hasMarkdown`) on 2026-07-24 — it is
+a per-target gap in Amper's task graph, not anything specific to `core`.
+
+### What to do about it
+
+Fix it at the call site. Two shapes, both already used in `core`:
+
+- **Test through the public surface and pin literal expected values.** This is
+  what `RecoveryPhraseTest` does — it asserts the canonical BIP-39 vectors
+  rather than reaching for `BIP39_WORDS`, which is a better test anyway.
+- **Promote the declaration**, when it stands on its own merits. `Sha256` went
+  public this way. Prefer the first option; only promote when the wider
+  visibility is defensible without the build constraint.
+
+Do **not** reach for `test-settings.kotlin.freeCompilerArgs`. It *works* —
+`-friend-modules=` is accepted by the Native compiler, `test-settings` scopes
+correctly to the test compilation, and `test-settings@ios` keeps it off the
+JVM/Android legs — which reject it outright, as an unscoped `test-settings`
+shows: `Internal error: …CompilerArgumentsParseException: Invalid argument:
+-friend-modules=…`. But it is unshippable, for three compounding reasons:
+
+- **Absolute paths only.** A relative path is silently ignored — no warning, no
+  error, the `internal` errors just stay. So the value would have to hardcode
+  one machine's checkout, in a file that is committed.
+- **One path per (target × build type).** The value must name
+  `build/tasks/_<module>_compile<Target><BuildType>/<module>.klib` for each of
+  Debug and Release and each iOS target. Colon-joining them does work, but the
+  list has to be maintained by hand per module.
+- **It targets Amper's private build layout**, which carries no compatibility
+  guarantee across versions.
+
+Re-check when Amper moves: if `kotlinNativeCompilerArgs` grows a `friendPaths`
+parameter, this whole section goes away and nothing in the modules needs to
+change.
+
 ## Known flakes (headless test harness)
 
 **Run the gate as `./check -m mock-support`, never `./kotlin check` directly.**
