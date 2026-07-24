@@ -79,13 +79,18 @@
 - [x] 5.2 `mobileSmartInputExclusionsStillHold` pins that `includePrintable` /
       `includeBackspace = false` still suppress those, and that a Ctrl chord
       still resolves on that path.
-- [x] 5.3 `./check -m terminal-api` (113 tests, was 102) and `-m shared` pass;
-      `-m mock-support` pending (running).
+- [x] 5.3 `./check -m terminal-api` (120 tests, was 102), `-m shared`, and
+      `-m mock-support` all pass.
 
-## 6. Device check — handed back
+## 6. Device check
 
-- [ ] 6.1 On desktop against a real TUI: `Ctrl-C` interrupts, `Option-f`/`-b`
-      move by word in a readline prompt rather than printing `ƒ`/`∫`, no
-      accessory row is shown, and the grid's bottom edge still looks finished.
-      Needs a rebuilt app on the running `azula serve` — handed back.
+- [x] 6.1 **Verified on desktop** against a live TUI over `azula serve`: Ctrl-C
+      interrupts, Option moves by word (no `ƒ`/`∫`), Shift/Command alone type
+      nothing, function keys no longer leak `<ffff>` glyphs, Cmd-V pastes, and no
+      accessory row is shown (bottom edge looks finished).
 - [ ] 6.2 On mobile: the accessory row still appears and behaves as before.
+      **Not run** — but the mobile branch is provably unchanged: `showKeys` went
+      from `if (platformHasSoftKeyboard) rememberImeVisible() else true` to
+      `platformHasSoftKeyboard && rememberImeVisible()`, which is identical for a
+      soft-keyboard platform. Low-risk; worth a glance next time the app is on a
+      phone.
