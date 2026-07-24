@@ -76,6 +76,27 @@ The redeemer sends the full encoded invite string in every `Hello` it dials
 with, and keeps re-presenting it on auto-reconnect until the issuer has
 accepted (after which it is a known peer and the invite is dropped).
 
+**Since multi-device identity, `Hello` also carries an optional device
+certificate:**
+
+```json
+{"type":"hello","name":"<node id hex>","invite":"azi…","cert":"azd…"}
+```
+
+Kotlin: `Frame.Hello(name, invite, cert: String? = null)`. Rust:
+`Hello { name, invite: Option<String>, #[serde(default)] cert: Option<String> }`.
+`cert` is the sender's own `"azd…"`-encoded device certificate (see
+[`device-linking.md`](../device-linking/design.md)), meant to be included by
+certificate-holding devices on every ALPN, in both directions — the same
+"old peers omit/ignore it, no version negotiation" posture as `invite`. It's
+independent of `invite` (a `Hello` can carry either, both, or neither): a
+certificate identifies *which identity* is connecting; an invite is still
+what grants a stranger permission to connect at all. As of this writing only
+`azula-cli`'s mailbox role actually populates it on send (`mailbox_role.rs`'s
+`run_chat_session`, announcing itself to a peer it just admitted); the app's
+`ConnectService` sends `Hello` with `cert` always absent today — see
+"Implementation status" below.
+
 ## Verification (accept side)
 
 A connecting peer is **known** if its node id matches an enabled conversation,
@@ -108,6 +129,51 @@ flagged "unverified" instead of closing.
 
 Redeeming never requires a profile: paste/scan/deep-link connects as a guest;
 sharing a persona is an optional inline step, never blocking.
+
+## Certificates extend the known-peer gate, they don't replace it
+
+Multi-device identity extends "known" from node-id matching to
+root-identity matching, without touching the invite mechanism above at all —
+the trust-gate is extended, not replaced (see the `multi-device-identity`
+change's Decision 6). A connecting peer is now known if **either**:
+
+- its node id matches an enabled conversation, a saved peer entry, or the
+  accepted-contacts list (unchanged), **or**
+- it presented a `Hello.cert` that verifies (signature, expiry), is not
+  revoked, and whose `root_pk` is already in the accepted-contacts list —
+  "a contact's new device is known by root."
+
+**A revoked device does not ride the root match.** If the acceptor holds a
+verified revocation naming the presented certificate's device key, the
+connection is *not* treated as known even though its root is a perfectly
+good contact — it falls through to the ordinary stranger/invite path exactly
+as if no certificate had been presented at all. This is deliberate: the
+whole point of a revocation is that the named device stops benefiting from
+its root's standing, including this bypass.
+
+**A certificate that fails verification is treated as absent, not as a
+rejection.** Malformed bytes, a bad signature, an expired certificate, or one
+bound to the wrong connection (see
+[`device-linking.md`](../device-linking/design.md)'s binding rule) all fold
+into the same outcome as "no `cert` field at all": the connection simply
+falls through to the pre-existing stranger/invite gate. This was a
+deliberate choice over hard-rejecting a bad certificate outright — a legacy
+peer that has never heard of certificates sends none, and a broken or
+adversarial certificate must not be allowed to behave any *worse* than that
+same legacy peer. Treating "invalid cert" as "no cert" means the worst a bad
+certificate can do is fail to help; it can never turn an otherwise-legitimate
+connection attempt into a hard failure a legacy peer wouldn't have hit.
+
+**Accepting a certified stranger pins the root.** When a stranger's
+certificate verifies but its root isn't yet a known contact
+("certified stranger" — the certificate is genuine, just new to us), the
+connection still goes through the ordinary invite-gated pending-request flow.
+If the user accepts, the contact is recorded by **root public key** rather
+than node id, and any other certified device of that same identity is
+subsequently known by the root-match path above with no further invite —
+"the contact's laptop lands in the existing conversation" the moment it
+first presents a valid certificate, rather than creating a second contact
+keyed on its own node id.
 
 ## Stores
 
@@ -183,6 +249,26 @@ public key above and reject it with the last signature byte XORed with `0x01`.
   unaffected everywhere.
 - Mailbox, media, and terminal flows are untouched — the gate runs at
   connection accept, before any wiring.
+
+## Implementation status of the root-identity extension (as of this writing)
+
+- The `Hello.cert` wire field exists in both `Protocol.kt` and `proto.rs`,
+  and (unlike `cert`) `Chat.id` — see
+  [`account-sync.md`](../account-sync/design.md) — is already attached by the
+  app's `ChatService` on every send.
+- The cert-aware accept gate (`CertGate`/`check_cert`/`gate_peer` in
+  `azula-cli/src/accept_gate.rs`) implements everything described above —
+  root-match known-peer bypass, revoked-device exclusion, invalid-cert-as-absent
+  — and is exercised today by `azula mailbox`'s chat ALPN
+  (see [`account-sync.md`](../account-sync/design.md#the-mailbox-role)).
+- The app's `ConnectService.isKnownPeer` has **not yet** been extended to
+  consider certificates at all — it still checks node id only (against
+  conversations, `PeerStore`, and `InviteService`'s accepted contacts). Root
+  pinning on accept, and keying a certified contact's conversation by root
+  pk instead of node id, are likewise not yet wired app-side
+  (`multi-device-identity` tasks 7.2/7.3/7.4). The wire format and the
+  Rust reference gate are done; the Kotlin accept-side logic described in
+  this section is the outstanding half.
 
 ## Future work (out of scope)
 
