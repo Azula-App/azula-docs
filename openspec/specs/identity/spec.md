@@ -1,33 +1,12 @@
 # Identity Specification
 
 ## Purpose
-Defines what an azula identity is (an iroh node keypair), how it is encoded
-as a 24-word BIP-39 recovery phrase, where the key is stored per platform,
-and the export/restore flows and security constraints around it.
+Defines what an azula identity is (a root Ed25519 keypair sitting above the
+per-device node keys used for transport), how it is encoded as a 24-word BIP-39
+recovery phrase, where the key material is stored per platform, and the export
+and enrollment flows and security constraints around it.
+
 ## Requirements
-### Requirement: Identity Is an iroh Node Keypair
-An azula identity SHALL be exactly a 32-byte iroh secret key; the node id
-SHALL be its hex-encoded public key. There SHALL be no account or
-server-side identity — losing the key SHALL produce an unrelated new node
-id, not a recoverable one.
-
-#### Scenario: Key loss changes identity
-- **WHEN** a device's persisted secret key is lost (e.g. app data cleared)
-  and no key is restored
-- **THEN** a new keypair is generated on next launch, yielding a different
-  node id and a different connect ticket/QR than before
-
-### Requirement: Identity Key Also Signs Invitations
-The same node secret key SHALL be usable to sign issued invitations with an
-Ed25519 signature, verifiable against the node id embedded in that invite's
-ticket. This SHALL be the only place identity key material signs data rather
-than securing transport TLS.
-
-#### Scenario: Verifying a signed invite
-- **WHEN** a signed invite ticket is checked
-- **THEN** its signature is verified against the node id embedded in that
-  same ticket
-
 ### Requirement: Personas Are Excluded From Identity
 Personas (name/avatar/description) SHALL be a separate per-conversation
 cosmetic layer, SHALL NOT be considered part of the identity, and SHALL NOT
@@ -39,10 +18,7 @@ be encoded in or restored by the recovery phrase.
   not part of the phrase
 
 ### Requirement: 24-Word BIP-39 Recovery Phrase Encoding
-The 32-byte secret key SHALL be encoded as a standard BIP-39 24-word English
-mnemonic: an 8-bit checksum (the first byte of SHA-256 of the key) SHALL be
-appended to the 256 key bits, and the resulting 264 bits SHALL be chunked
-into 24 eleven-bit indices into the 2048-word BIP-39 wordlist.
+The 32-byte root secret key SHALL be encoded as a standard BIP-39 24-word English mnemonic: an 8-bit checksum (the first byte of SHA-256 of the key) SHALL be appended to the 256 key bits, and the resulting 264 bits SHALL be chunked into 24 eleven-bit indices into the 2048-word BIP-39 wordlist. Device node keys SHALL NOT have mnemonic encodings — the phrase encodes only the root secret.
 
 #### Scenario: All-zero key vector
 - **WHEN** encoding a key of all-zero entropy
@@ -52,6 +28,10 @@ into 24 eleven-bit indices into the 2048-word BIP-39 wordlist.
 #### Scenario: All-0xff key vector
 - **WHEN** encoding a key of all-`0xff` bytes
 - **THEN** the result is the word "zoo" repeated 23 times followed by "vote"
+
+#### Scenario: Device keys have no phrase
+- **WHEN** a QR-linked device (holding no root secret) opens the reveal-recovery-phrase flow
+- **THEN** the app explains that the phrase lives with root-holding devices instead of showing a phrase for the device key
 
 ### Requirement: Recovery Phrase Decode Validation
 Decoding SHALL succeed only when the input has exactly 24 words that are all
@@ -70,13 +50,7 @@ key. Whitespace and case SHALL be normalized before validation.
 - **THEN** it is normalized before validation and decodes successfully
 
 ### Requirement: Per-Platform Key-at-Rest Storage
-Each platform SHALL persist the raw 32-byte secret key through the shared
-transport export/import seam, using its own storage mechanism: JVM desktop
-as a plain file; Android inside an encrypted preferences store (Keystore-backed
-AES), self-healing a corrupt keyset by recreating the store rather than
-falling back to a demo identity; iOS as a hex string in platform user
-defaults. `-mock` apps SHALL persist no key — every launch SHALL generate a
-throwaway identity.
+Each platform SHALL persist the device node key, and the root secret when this device holds one, through the shared transport export/import seam, using its existing storage mechanism: JVM desktop in the macOS login Keychain (plain file off-mac); Android inside an encrypted preferences store (Keystore-backed AES), self-healing a corrupt keyset by recreating the store rather than falling back to a demo identity; iOS in the platform keychain-backed store. The root secret and node key SHALL be stored under distinct entries. `-mock` apps SHALL persist no key — every launch SHALL generate a throwaway identity.
 
 #### Scenario: Android corrupt keyset self-heal
 - **WHEN** Android detects a corrupt encrypted keyset on read
@@ -86,6 +60,10 @@ throwaway identity.
 #### Scenario: Mock app throwaway identity
 - **WHEN** a `-mock` app launches
 - **THEN** it generates a fresh identity and persists nothing to disk
+
+#### Scenario: QR-linked device stores no root secret
+- **WHEN** a device was enrolled via QR-link
+- **THEN** its key store contains its node key and certificate but no root secret entry
 
 ### Requirement: Export Flow Requires Explicit Reveal
 Revealing the recovery phrase outside the initial setup flow SHALL require a
@@ -115,52 +93,16 @@ user to connect first, rather than showing a partial or fabricated phrase.
 - **THEN** the 24 words are shown directly without an additional
   warning-only interstitial
 
-### Requirement: Restore Flow Replaces the Identity In Place
-A valid pasted recovery phrase SHALL commit immediately on restore with no second confirmation step, persisting the new key and rebinding the transport in place without an app restart. An invalid phrase SHALL leave the existing identity unchanged and show an inline error. The previous key SHALL be overwritten, not archived. A failed re-bind SHALL NOT propagate out of the restore call — the key is persisted before the re-bind, so the restore has committed and SHALL be reported as successful, with the transport degrading to offline exactly as a failed initial bind does. A successful restore SHALL leave the transport able to accept inbound connections without an app restart.
-
-#### Scenario: Valid restore
-- **WHEN** a valid 24-word phrase is submitted to restore
-- **THEN** the key is persisted, the transport tears down and rebinds in
-  place, and the node id/connect ticket reflect the new identity without
-  restarting the app
-
-#### Scenario: Invalid restore attempt
-- **WHEN** an invalid phrase is submitted to restore
-- **THEN** the existing identity is left unchanged and an inline error is
-  shown
-
-#### Scenario: Old key unrecoverable after restore
-- **WHEN** a restore succeeds
-- **THEN** the previous key is overwritten and is not recoverable unless it
-  was separately backed up beforehand
-
-#### Scenario: Re-bind fails during restore
-- **WHEN** a phrase decodes successfully but the transport cannot re-bind
-- **THEN** the restore SHALL report success and the app SHALL degrade to
-  offline rather than terminate, and SHALL NOT report the phrase as invalid
-
-#### Scenario: Inbound still accepted after restore
-- **WHEN** a restore succeeds and a peer subsequently dials the device
-- **THEN** the connection SHALL be accepted against the newly bound endpoint,
-  with no app relaunch required
-
 ### Requirement: Recovery Phrase Security Properties
-The recovery phrase SHALL be sufficient on its own for full control of the
-identity, with no additional PIN or passphrase layer — anyone holding the 24
-words SHALL be able to import them and impersonate the device. The phrase
-SHALL NOT expose message history or saved peer tickets. The 8-bit checksum
-SHALL be treated as a transcription-error check, not a tampering or security
-boundary.
+The recovery phrase SHALL be sufficient on its own for full control of the identity, with no additional PIN or passphrase layer — anyone holding the 24 words SHALL be able to enroll a device with root authority, including issuing and revoking device certificates. The phrase itself SHALL NOT encode message history, contacts, or peer tickets; history reaches a restored device only by syncing from the identity's reachable devices. The 8-bit checksum SHALL be treated as a transcription-error check, not a tampering or security boundary.
 
 #### Scenario: Phrase alone grants impersonation
 - **WHEN** a third party obtains the 24-word phrase
-- **THEN** they can import it as their own identity and dial or receive as
-  that device, with no further secret required
+- **THEN** they can enroll a device with full root authority — send, receive, enroll, and revoke — with no further secret required
 
-#### Scenario: Phrase does not leak chat history
-- **WHEN** a recovery phrase is exported or restored
-- **THEN** message history and saved peer tickets are unaffected, since they
-  live in storage keyed independently of the transport identity
+#### Scenario: Phrase without reachable devices yields no history
+- **WHEN** a phrase is restored while no sibling device (including any mailbox) is reachable
+- **THEN** the identity is recovered but history is empty until a sibling comes online, since the phrase encodes only the root secret
 
 ### Requirement: CLI Long-Lived Identities
 Each of azula-cli's long-lived commands SHALL persist its own raw 32-byte key
@@ -179,4 +121,41 @@ logged warning) rather than failing to start.
 - **WHEN** the home directory is unset or unwritable at startup
 - **THEN** the command generates an ephemeral in-memory key and logs a
   warning, so the connect code changes every run
+
+### Requirement: Identity Is a Root Keypair Above Device Node Keys
+An azula identity SHALL be a root Ed25519 keypair whose 32-byte secret is the identity's single recoverable secret; each device SHALL additionally hold its own iroh node keypair used for transport. Peers SHALL identify a contact by the root public key. A device SHALL present its membership in an identity via a device certificate signed by the root key (see `device-linking`). On first launch after upgrade, an existing single-device identity's node secret SHALL become the root secret unchanged, and that device SHALL continue using the same key as its device key (a self-certificate with `device_pk == root_pk`), so its recovery phrase, node id, and existing contacts all remain valid.
+
+#### Scenario: Upgrade preserves phrase and node id
+- **WHEN** a device with a pre-multi-device identity first launches the upgraded app
+- **THEN** the existing secret becomes the root secret, the recovery phrase and node id are unchanged, and a self-certificate with `device_pk == root_pk` is issued
+
+#### Scenario: A second device has a distinct node id
+- **WHEN** a second device is enrolled onto an identity
+- **THEN** it holds its own node keypair with a different node id, and peers associate both devices with the same root public key
+
+### Requirement: Key Roles and Signing Boundaries
+Key material SHALL sign data outside transport TLS in exactly three places: a device node key SHALL sign issued invitations (verified against the node id in the invite's ticket, unchanged); the root key SHALL sign device certificates; and the root key SHALL sign revocation statements. No other payloads SHALL be signed by identity or device key material.
+
+#### Scenario: Invite signed by a device key still verifies
+- **WHEN** any enrolled device of an identity mints a signed invite
+- **THEN** the signature verifies against that device's node id embedded in the invite's ticket, exactly as for a single-device identity
+
+#### Scenario: Certificate not signed by the root is invalid
+- **WHEN** a device certificate's signature does not verify against the certificate's embedded root public key
+- **THEN** the certificate is treated as invalid and grants no identity association
+
+### Requirement: Restore Recovers the Identity Onto This Device
+Submitting a valid 24-word recovery phrase SHALL enroll the current device into the identity rather than replacing any key in place: the device SHALL retain (or mint, on a fresh install) its own node keypair, store the decoded root secret, self-issue a device certificate, append a `device_add` log entry, and begin syncing (see `account-sync`). An invalid phrase SHALL leave existing state unchanged and show an inline error. If the device previously held a different identity, that identity's root secret SHALL be overwritten only after the new phrase validates. A failed transport re-bind SHALL NOT fail the restore — the enrollment is committed locally and the transport degrades to offline exactly as a failed initial bind does.
+
+#### Scenario: Restore on a second device adds a device
+- **WHEN** a valid phrase for an existing identity is submitted on a fresh device
+- **THEN** the device joins the identity as a new device with its own node id, and the identity's other devices continue operating undisturbed
+
+#### Scenario: Invalid restore attempt
+- **WHEN** an invalid phrase is submitted to restore
+- **THEN** the existing state is left unchanged and an inline error is shown
+
+#### Scenario: History arrives after restore
+- **WHEN** a restored device completes enrollment and reaches any sibling device (including the mailbox)
+- **THEN** message history, contacts, and read state converge via log sync rather than being decoded from the phrase
 
