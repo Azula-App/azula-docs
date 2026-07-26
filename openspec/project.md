@@ -47,13 +47,37 @@ versions, and deploys on its own.
     injects the fakes for UI tests.
   - `design/`, `e2e/` — design mock notes and Maestro flows; the `./kotlin`
     wrapper and `project.yaml` live at this repo's root.
-- `azula-cli/` — Rust cargo workspace. The root `azula` package (lib + binary):
-  `serve` (MCP client + PTY shell), `serve-mcp` / `mcp` (HTTP / stdio MCP server
-  bridging an LLM to the app over iroh — see
-  [`openspec/specs/mcp-bridge/design.md`](specs/mcp-bridge/design.md)), plus
-  `pair`/`devices`/`qr`. The `demos/` member builds the separate `azula-demos`
-  binary (`demo-ui`, `blackjack`) so demo tools don't ship in the production
-  server. Sources in `src/`, extra repo-local notes in `docs/`.
+- `azula-cli/` — Rust cargo workspace. The root `azula` package (lib + binary),
+  published to Homebrew/crates.io/npm off a `v*` tag — see
+  [`cli-distribution-design.md`](changes/cli-multi-session-relay/design-pages/cli-distribution-design.md).
+  Noun-verb command surface (`message`, `ui`, `file`, `watch`, `status`,
+  `mcp [--http]`, `run`, `terminal`, `relay`, plus `pair`/`devices`/`qr`/
+  `invite`/`invites`/`link` — see
+  [`cli-surface-design.md`](changes/cli-multi-session-relay/design-pages/cli-surface-design.md))
+  over one shared `SessionCore`; every process binds its own per-session
+  identity certified by a stable per-machine key (see
+  [`session-identity-design.md`](changes/cli-multi-session-relay/design-pages/session-identity-design.md)).
+  `azula mcp [--http BIND]` (HTTP or stdio MCP server bridging an LLM to the
+  app over iroh — see
+  [`openspec/specs/mcp-bridge/design.md`](specs/mcp-bridge/design.md)) is the
+  successor to the pre-restructure `serve-mcp`/`mcp` split; `serve-mcp`,
+  `mcp` (old flag shape), `serve`, and `mailbox` remain as deprecated aliases
+  for one release. `azula run`/`azula terminal` host PTY sessions (see
+  [`openspec/specs/terminal/design.md`](specs/terminal/design.md)); `azula
+  relay` (alias: `mailbox`) is the always-on store-and-forward + agent-chat +
+  A2UI-snapshot sibling (see
+  [`relay-design.md`](changes/cli-multi-session-relay/design-pages/relay-design.md)).
+  The `demos/` member builds the separate `azula-demos` binary (`demo-ui`,
+  `blackjack`) so demo tools don't ship in the production server. Sources in
+  `src/`, extra repo-local notes in `docs/`. **Note:** `azula-cli/README.md`'s
+  Install section reflects this restructure; the rest of the file
+  (Build/Run/tool catalog/wire-protocol/crate-layout, below "## Build") still
+  documents the pre-restructure `serve`/`serve-mcp`/`pair`-only CLI and needs
+  a pass to catch up — see the design pages linked above for current reality
+  in the meantime. (The `cli-surface`/`session-identity`/`relay`/
+  `cli-distribution` design pages linked above are staged under this change
+  until it archives, at which point they merge into `openspec/specs/`
+  alongside `mcp-bridge`/`terminal` above.)
 - `azula-site/` — Cloudflare Worker for azula.app (landing + session-link URLs +
   deeplink well-known files). Sources in `src/`.
 - `iroh-kmp/` — the iroh SDK for KMP (package `app.azula.iroh`): a minimal Rust +
@@ -166,16 +190,54 @@ Each command runs inside its own repo, not a shared root.
 
 ## azula device registry (MCP bridge state)
 
-`azula serve-mcp` + `azula pair <url>` persist paired devices as JSON the agent
+`azula mcp` + `azula pair <url>` persist paired devices as JSON the agent
 can read:
 
 - project-local `<worktree-root>/.azula/devices.json` — git-worktree-aware (first
   ancestor with a `.git`); `azula pair` writes here inside a repo,
 - global `~/.azula/devices.json` — fallback / `--global`; reads merge global then
   project (project wins by name),
+- **relay hints** — a companion `relay-hints.json` (or `global-relay-hints.json`
+  next to the global file) sits beside each `devices.json`, mapping device
+  name to a learned relay connect ticket (`registry::relay_for`/`set_relay`)
+  — a sibling file rather than a new field on `devices.json`'s own `Device`
+  entries (several accept-side call sites construct that struct exhaustively
+  — see
+  [`relay-design.md`](changes/cli-multi-session-relay/design-pages/relay-design.md#relay-hint-how-a-session-learns-the-relays-ticket)
+  for why). Same project/global precedence as `devices.json` itself. `azula
+  devices --json` surfaces whether a hint is known per device as a `relay`
+  boolean.
 - runtime `$TMPDIR/azula/bridge.json` — a running bridge's `{bind, pid, devices}`.
 
 To see which devices are paired/connected, read those files.
+
+## azula machine + session identity, and local session state
+
+Since cli-multi-session-relay, a bridge/CLI process's *own* identity is no
+longer one persistent key — see
+[`session-identity-design.md`](changes/cli-multi-session-relay/design-pages/session-identity-design.md)
+for the full model. In brief, the files an agent might need to read or
+reason about:
+
+- `~/.azula/machine.key` — the stable per-machine root every session's
+  certificate chains to. Adopted in place from a pre-existing
+  `~/.azula/bridge.key` on first use (same node id, `bridge.key` left
+  untouched); read-only from any session-establishment code path (never
+  auto-created merely by a session starting — only explicit pairing-side
+  flows like `azula invite --bridge`/`start_pairing` may create it).
+- `~/.azula/sessions/<name>.key` — a **named**, persistent session key
+  (`--session NAME` / `AZULA_SESSION`); one-shot CLI verbs default to the
+  shared name `cli`. `$TMPDIR/azula/sessions/<name>.key` — an **ephemeral**
+  session key (the default for `azula mcp`/`azula run`/`azula terminal`),
+  deleted on clean process exit.
+- `$TMPDIR/azula/sessions/<name>.json` — a **detached** `azula terminal new`
+  host's runtime state (`{name, pid, node_id, invite_url, started_at}`);
+  read by `azula terminal list`/`kill`. Distinct from the `.key` file of the
+  same name in the same directory (state vs. key material).
+- `azula status [--json]` reads all of the above (plus `devices.json`) and
+  binds no endpoint of its own — the fastest way for an agent to answer "is
+  there a machine identity here, what's paired, what sessions are running"
+  without side effects.
 
 ## Design system
 

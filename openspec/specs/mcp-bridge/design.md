@@ -10,30 +10,74 @@ canned/relay demo server, not this bridge.
 On startup the bridge binds one iroh `Endpoint` (`azula/llm/0` ALPN) that
 serves both directions: it accepts app/peer connections that scanned its QR
 *and* dials out to every device in the registry in the background (failures
-are non-fatal, logged and retried). A persisted secret key at
-`~/.azula/bridge.key` (see `identity.rs`) keeps the bridge's node id — and thus
-its pairing code — stable across restarts.
+are non-fatal, logged and retried).
+
+## Bridge identity: machine key + per-process session certs
+
+**Since cli-multi-session-relay, the bridge no longer binds `~/.azula/bridge.key`
+directly.** Every bridge process — `azula mcp` (stdio) and `azula mcp --http`
+alike — mints its own ephemeral or named **session** keypair
+(`session::SessionKey::resolve`) and binds *that* to its endpoint; a
+short-lived `azd…` certificate (`FLAG_SESSION`) signs the session key with
+the machine's stable identity, now stored at `~/.azula/machine.key`. This is
+what lets two bridge processes run concurrently on one machine without
+colliding: node ids used to be the shared `bridge.key`'s (a hard "one MCP
+server per computer" limit), and are now unique per process.
+
+`~/.azula/bridge.key`, if a machine already had one from before this change,
+is **adopted as-is**: its bytes are copied into `machine.key` on first use
+(`identity::load_machine_secret_if_exists`), `bridge.key` is left in place
+untouched, and the machine's node id — and therefore every pairing the phone
+already has with it — is unchanged. `start_pairing` (and the startup banner)
+mint invites against the **machine** identity, not the session's own key, so
+a phone pairs with the machine once; every session on it is then
+auto-admitted without a further prompt, provided its cert chains to that
+machine root (see
+[`session-identity/design.md`](../../changes/cli-multi-session-relay/design-pages/session-identity-design.md)
+for the full mint/verify/auto-admit story — this page only covers what
+changed about the bridge's own identity).
+
+A headless environment with no `machine.key` (a fresh Claude Code web
+container, a CI runner) self-certifies instead: the session key signs its
+own cert (`root_pk == device_pk`), and the printed pairing invite/QR is an
+ordinary signed invite the phone approves once per session — "scan per
+session," never a standing credential written to that environment's disk.
 
 ## Starting it
 
-Two entrypoints share the same `setup_bridge()` core (`bridge/mod.rs`); they
-differ only in transport:
+Two transports share the same `SessionCore`/`core::establish` setup
+(`bridge/mod.rs`'s `run`/`run_stdio`), selected by one flag on one command —
+**`azula mcp [--http BIND]`** replaces the old `serve-mcp`/`mcp` split:
 
-| Command | Transport | Bind / invocation | Use for |
+| Invocation | Transport | Bind | Use for |
 |---|---|---|---|
-| `azula serve-mcp [--bind ADDR] [--device URL]... [--name NAME] [--max-turns N]` | Streamable HTTP, mounted at `/mcp` | `--bind` (env `AZULA_MCP_BIND`), default `127.0.0.1:8765` | A long-running bridge process an HTTP MCP client points at, e.g. `claude mcp add --transport http azula http://127.0.0.1:8765/mcp` |
-| `azula mcp [--device URL]... [--name NAME]` (default name `"Claude"`) | stdio (JSON-RPC over stdin/stdout) | none — launched by the MCP client | `claude mcp add azula -- azula mcp`; Claude Code spawns the process itself |
+| `azula mcp --http [BIND] [--device URL]... [--name NAME] [--session NAME] [--max-turns N]` | Streamable HTTP, mounted at `/mcp` | `--http`'s value (env `AZULA_MCP_BIND`), default `127.0.0.1:8765` | A long-running bridge process an HTTP MCP client points at, e.g. `claude mcp add --transport http azula http://127.0.0.1:8765/mcp` |
+| `azula mcp [--device URL]... [--name NAME] [--session NAME]` (default name `"Claude"`) | stdio (JSON-RPC over stdin/stdout) | none — launched by the MCP client | `claude mcp add azula -- azula mcp`; Claude Code spawns the process itself |
+
+**Deprecated aliases (one release, per `cli-surface` spec):** `azula
+serve-mcp [--bind ADDR] ...` still works — it prints a stderr deprecation
+notice, then delegates to `azula mcp --http`'s exact behavior
+(`cli::mcp_cmd::run_serve_mcp_alias`). Plain `azula mcp` (no `--http`) is not
+itself deprecated — it *is* the replacement for the old stdio-only `mcp`
+command, just with the new noun-verb dispatch underneath.
 
 `--device URL` (repeatable) adds devices for this run only (not persisted).
 `--max-turns` (default 20) is the hard per-peer turn cap for `say`
-conversations. Because `mcp`'s stdout is the JSON-RPC channel, all logging and
-the human banner go to **stderr**; `main.rs` configures `tracing_subscriber`
+conversations. `--session NAME` (also `AZULA_SESSION`) opts into a
+**persistent named** session instead of the default fresh ephemeral one per
+process — see session-identity's "Session Continuity Across Invocations."
+Because `mcp`'s stdout is the JSON-RPC channel, all logging and the human
+banner go to **stderr**; `main.rs` configures `tracing_subscriber`
 accordingly regardless of subcommand.
 
-`setup_bridge()` also: loads the device registry and pre-populates the
-in-memory device map, writes the runtime state file, spawns a background task
-per known device to dial it, and spawns a loop that wakes every 25s to retry
-dialing any disconnected device that has mail queued (see Offline mailbox).
+`core::establish()` (the shared setup both transports call, documented fully
+in [`cli-surface/design.md`](../../changes/cli-multi-session-relay/design-pages/cli-surface-design.md#sessioncore-the-shared-core))
+also: resolves the session key and mints its cert, loads the device registry
+and pre-populates the in-memory device map, writes the runtime state file,
+spawns a background task per known device to dial it, and spawns a loop that
+wakes every 25s to retry dialing any disconnected device that has mail
+queued (see Offline mailbox, and — since cli-multi-session-relay — the
+relay-first delivery chain below).
 
 ## Tool catalog
 
@@ -44,23 +88,32 @@ All 13 tools live in the `#[tool_router] impl AzulaBridge` block
 |---|---|---|---|
 | `connect` | `url`, `name?` | Parses a ticket/URL (`parse_ticket`, 4 forms below), saves it to the registry, dials it. Sends a `hello` frame first so peer bridges can name this bridge. | Saves + reports "saved (could not connect now)" if the dial fails |
 | `list_devices` | — | Union of registry + in-memory devices with fingerprint and status (`connected`/`disconnected`/`offline`) | n/a |
-| `send_message` | `device`, `text` | Streams `text` to the device as a chat assistant reply (`thinking(true)` → `token` → `token_done` → `thinking(false)` frames) | Queued to the device's mailbox, tool returns success with "queued…(offline)" |
-| `send_file` | `device`, `path`, `caption?` | Reads a local file (`path` is on the machine running the bridge, not the phone), infers its mime type from the extension, and streams it inline as `file_begin` → `file_chunk`×N → `file_end` (see [File transfer](#file-transfer) below). This is the tool for sending an **image** to the user — `render_ui`'s `Image` component only renders small embedded data URIs. | Requires a live connection (`ensure_device`); errors if unreachable — not queued (a large file would blow the mailbox's 1000-frame cap) |
+| `send_message` | `device`, `text` | Streams `text` to the device as a chat assistant reply (`thinking(true)` → `token` → `token_done` → `thinking(false)` frames) | Delivery chain: direct → relay (if known) → local mailbox. Always reports success as "queued…(offline)" for either fallback — see below |
+| `send_file` | `device`, `path`, `caption?` | Reads a local file (`path` is on the machine running the bridge, not the phone), infers its mime type from the extension, and streams it inline as `file_begin` → `file_chunk`×N → `file_end` (see [File transfer](#file-transfer) below). This is the tool for sending an **image** to the user — `render_ui`'s `Image` component only renders small embedded data URIs. | Requires a live connection (`ensure_device`); errors if unreachable — never queued, relay or not (a large file fits neither the relay's 256 KiB A2UI cap nor the local mailbox's 1000-frame cap) |
 | `get_messages` | `device?` | Non-blocking drain of one device's inbox, or all devices' (prefixed `《name》`) if omitted. Lines are user chat text, peer `say` text, `ui-event: {...}` JSON from an A2UI tap, or `[received file: ...]` from an inbound attachment | n/a (reads only) |
 | `wait_for_reply` | `device`, `timeout_s?` (default 120) | Long-polls (200ms interval) the device's inbox until non-empty or timeout; returns `"(no reply within Ns)"` on timeout | n/a |
 | `set_name` | `description?`, `name?`, `device?` | Sends a `Profile` frame to set the conversation's displayed name (default: bridge's own name, usually left unset) and description (e.g. `"azula / terminal refactor"`); applies to one device or all connected | Silently sends to whichever devices are currently connected; not queued |
-| `say` | `device`, `text`, `done?` | Peer-bridge-to-peer-bridge chat message (not for app devices). Enforces `max_turns`; closes the conversation and notifies the peer at the cap, or when `done=true` | Queued as a `Chat` frame if the peer is unreachable |
-| `render_ui` | `device`, `components`, `data_model?`, `surface_id?` | Creates (or replaces) an A2UI surface: `createSurface` → `updateComponents` → optional `updateDataModel`. Validates `components` is an array with one `"id":"root"` | Requires a live connection (`ensure_device`); errors if unreachable — not queued |
-| `update_ui` | `device`, `surface_id`, `path`, `value` | Sends `updateDataModel` at an RFC 6901 JSON pointer (`""` = whole model) into an existing surface | Requires live connection; not queued |
-| `delete_ui` | `device`, `surface_id` | Sends `deleteSurface` | Requires live connection; not queued |
+| `say` | `device`, `text`, `done?` | Peer-bridge-to-peer-bridge chat message (not for app devices). Enforces `max_turns`; closes the conversation and notifies the peer at the cap, or when `done=true` | Same delivery chain as `send_message`: direct → relay → local mailbox |
+| `render_ui` | `device`, `components`, `data_model?`, `surface_id?` | Creates (or replaces) an A2UI surface: `createSurface` → `updateComponents` → optional `updateDataModel`. Validates `components` is an array with one `"id":"root"` | Live if reachable; else, with a relay known, coalesces into a full-surface snapshot delivered to the relay and reports "queued for replay"; with no relay known, errors immediately as before (unchanged pre-relay behavior) |
+| `update_ui` | `device`, `surface_id`, `path`, `value` | Sends `updateDataModel` at an RFC 6901 JSON pointer (`""` = whole model) into an existing surface | Live if reachable; offline-with-relay coalescing works **only if this same session already holds the surface's full state** (rendered earlier in this session); otherwise the original unreachable error, even with a relay known |
+| `delete_ui` | `device`, `surface_id` | Sends `deleteSurface` | Live if reachable; else, with a relay known, sends a tombstone snapshot (needs no retained state, unlike `update_ui`) |
 | `start_pairing` | — | Returns the bridge's own pairing URL (`https://azula.app/s/<ticket>`) + a Unicode QR block to show the user | n/a |
 | `disconnect` | `device`, `forget?` | Drops the live send stream (and connected flag); `forget=true` also deletes the device from both registry files | n/a |
 
-`send_message` and `say` are the only tools with mailbox fallback — `send_file`/`render_ui`/`update_ui`/`delete_ui`
-require a live stream and fail outright if the device is unreachable (A2UI surface state isn't
-something the app can replay from a queue, and a multi-megabyte file isn't something the
-1000-frame mailbox cap can hold). All tools lazily (re)dial a known-but-disconnected
-device via `ensure_device()` before giving up.
+**Since cli-multi-session-relay, `send_message` and `say` are the only tools
+with offline delivery, but the fallback is now a two-step chain, not a
+single mailbox:** direct to the device first; the identity's **relay**
+second, only when a relay hint is known for that device (delivered there as
+a `Chat` frame the relay appends to its own log as an `agent_in` entry —
+see [`relay/design.md`](../../changes/cli-multi-session-relay/design-pages/relay-design.md));
+the local per-device JSONL mailbox (below) last, only when no relay hint is
+known at all. `render_ui`/`update_ui`/`delete_ui` gained a **narrower**
+offline path — coalesced full-surface snapshots to the relay, never the
+local mailbox (A2UI state was never something the local mailbox's flat frame
+queue could replay meaningfully) — while `send_file` is unchanged: it still
+requires a live stream and errors immediately if unreachable, relay or not.
+All tools lazily (re)dial a known-but-disconnected device via
+`ensure_device()` before giving up on the direct path.
 
 ## File transfer
 
@@ -138,18 +191,23 @@ of a surface.
    own_name}` frame back so the phone titles the conversation (e.g. "Claude");
    refine it later with `set_name`.
 
-**Invite identity gotcha:** the bridge (`serve-mcp`/`mcp`) persists its own
-node key under a `"bridge"` identity name, separate from `azula serve`'s
-`"serve"` identity — see [`identity.md`](../identity/design.md). A plain `azula invite`
-mints against the `serve` identity, so it will **not** be accepted by a
-running `serve-mcp`/`mcp` bridge (different node id → the invite's embedded
-ticket doesn't name this process, failing rule 2 in
-[`invitations.md`](../invitations/design.md#verification-accept-side)). To mint a
-pairing invite for a bridge from the CLI, use `azula invite --bridge`
-(mints against the bridge identity instead); the bridge's own startup banner
-and the `start_pairing` tool already mint bridge-identity invites, so this
-flag is only needed for minting one out-of-band (e.g. ahead of time, to hand
-to someone before the bridge is running).
+**Invite identity gotcha (updated for session identity):** a bridge process
+no longer has one persistent identity to mint an out-of-band invite
+against — each is a fresh (or named) **session** key, ephemeral by default.
+A plain `azula invite` still mints against `azula serve`'s own `"serve"`
+identity, so it will **not** pair with a running `azula mcp` bridge (a
+session's cert chains to the **machine** identity, not `serve`'s). To hand
+out a pairing invite for *any* `azula mcp` session on this machine ahead of
+time (before the bridge is even running), use `azula invite --bridge` — this
+now mints against the **machine** identity (`~/.azula/machine.key`, adopting
+an existing `bridge.key` in place if this is the first invocation since the
+restructure — see "Bridge identity" above), the root every session's cert
+chains to, rather than a bridge-specific identity of its own. The bridge's
+own startup banner and the `start_pairing` tool mint machine-identity
+invites automatically (via `core::mint_pairing_invite`), so `--bridge` is
+only needed for minting one out-of-band. See
+[`session-identity/design.md`](../../changes/cli-multi-session-relay/design-pages/session-identity-design.md)
+for the full cert-chaining/auto-admit story this identity split enables.
 
 ## Device registry + runtime state
 
@@ -163,11 +221,22 @@ bridge-internal detail:
   collision. `AZULA_REGISTRY_DIR` overrides both paths (tests use an isolated
   temp dir automatically under `cfg(test)`).
 - **Runtime** `$TMPDIR/azula/bridge.json` (`state_path()` /
-  `write_state()` in `bridge/state.rs`) is rewritten on every connect/disconnect/
-  registry change: `{bind, pid, devices: [{name, connected}]}`. `bind` is the
-  HTTP bind address for `serve-mcp`, or the literal string `"stdio"` for
-  `azula mcp`. An agent can read this file to discover a bridge already
-  running without calling a tool.
+  `write_state()` in `core/state.rs`, moved from the old `bridge/state.rs`
+  during the phase-2 `SessionCore` extraction) is rewritten on every
+  connect/disconnect/registry change: `{bind, pid, devices: [{name,
+  connected}]}`. `bind` is the HTTP bind address for `azula mcp --http`, or
+  the literal string `"stdio"` for plain `azula mcp`. An agent can read this
+  file to discover a bridge already running without calling a tool. This is
+  a separate file from `azula status --json`'s report (see
+  [`cli-surface/design.md`](../../changes/cli-multi-session-relay/design-pages/cli-surface-design.md#azula-status---json)),
+  which reads this same file plus the registry and session-key directories
+  but binds no endpoint of its own.
+- **Relay hints** — a companion `relay-hints.json`/`global-relay-hints.json`
+  sits next to each `devices.json`, mapping device name to a learned relay
+  ticket (`registry::relay_for`/`set_relay`). Not part of `Device` itself —
+  see [`relay/design.md`](../../changes/cli-multi-session-relay/design-pages/relay-design.md#relay-hint-how-a-session-learns-the-relays-ticket)
+  for why, and [`project.md`](../../project.md) for the full file-layout
+  table.
 - `disconnect(forget=true)` removes the device from *both* registry files
   (`registry::remove`), not just the in-memory map.
 
@@ -183,23 +252,41 @@ conversation list and chat header. Keep the same description across a
 session's tool calls; set a fresh one when a new session starts. Omitting
 `device` applies it to every currently-connected device.
 
-## Offline mailbox
+## Offline delivery: direct, then relay, then the local mailbox
 
-`mailbox.rs` gives `send_message` and `say` store-and-forward when a device
-isn't connected: frames are appended as JSONL to
+**Since cli-multi-session-relay, `mailbox.rs`'s local JSONL queue is the
+*last* resort, not the only fallback.** `SessionCore::send_message`/`say`
+(`core/mod.rs`) try, in order: a live connection (dialing lazily via
+`ensure_device` if the device is merely disconnected, not literally
+unreachable); the identity's **relay**, if a hint is known for that device
+(`registry::relay_for` — see
+[`relay/design.md`](../../changes/cli-multi-session-relay/design-pages/relay-design.md#session-side-delivery-chain));
+only then the local per-device JSONL mailbox this section originally
+documented. A caller can't distinguish "delivered to the relay" from
+"queued locally" from the tool result alone — both report success as
+"queued…(offline)."
+
+`mailbox.rs` itself is unchanged: frames are appended as JSONL to
 `<mailbox_dir>/<sanitized-device-name>.jsonl`, one file per device, capped at
 1000 frames (oldest trimmed on overflow). `mailbox_dir()` resolves, in order:
 `AZULA_MAILBOX_DIR` env, else `<global-registry-parent>/mailbox` (i.e.
-`~/.azula/mailbox`), else `$TMPDIR/azula/mailbox`.
+`~/.azula/mailbox`), else `$TMPDIR/azula/mailbox`. This is deliberately a
+**different** store from the relay's own log-backed delivery — see
+`account-sync/design.md`'s "The mailbox role" section for why the two are
+independent (identity-level offline delivery is built on `sync::LogStore`
+and doesn't depend on this per-device JSONL queue at all).
 
 Queued frames flush in `flush_mailbox()`, called right after a successful dial
 — both when the bridge dials out (`connect_device`) and when a device dials
 *in* (`accept_incoming`) — before the send stream is handed to the tool layer,
 so a phone that reconnects gets its backlog first. The flush only clears the
 file if every frame writes successfully; a failure leaves it intact for the
-next attempt. Separately, the 25-second background loop in `setup_bridge()`
-scans for `!connected` devices with `mailbox::has_pending() == true` and
-retries `connect_device` for each.
+next attempt. Separately, the 25-second background loop `core::establish`
+spawns scans for `!connected` devices with `mailbox::has_pending() == true`
+and retries `connect_device` for each — this loop only ever retries the
+*direct* connection; it has no relay-awareness of its own (the relay path is
+tried fresh, per call, inside `send_message`/`say` themselves, not via a
+background retry).
 
 ## Peer bridge conversations (`say`)
 

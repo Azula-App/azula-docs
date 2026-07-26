@@ -46,17 +46,62 @@ base32" below).
 | `0x06` | `device_add` | `{cert}` — an `"azd…"`-encoded certificate |
 | `0x07` | `device_revoke` | `{revocation}` — an `"azr…"`-encoded revocation |
 | `0x08` | `profile_update` | `{name?, description?}` |
+| `0x09` | `agent_in` | `{conversation, text, id?, from_name?}` — cli-multi-session-relay: agent chat the identity's relay logged on a session's behalf, see below |
+| `0x0A` | `agent_out` | `{conversation, text, id?}` — the identity's reply to an agent conversation, keyed the same way |
 
 `conversation` is the contact's root public key in hex for a certified
-contact, or its node id in hex for a legacy one — the same string already
-used as the peer-conversation key elsewhere in the app, so root-pk keying
-(task 7.3, not yet wired — see "Implementation status") is a substitution of
-that one value, not a shape change here. Every JSON body field name is
-snake_case (`up_to_lamport`, `from_device_pk`, ...) to match what
+contact, or its node id in hex for a legacy one, for every kind **except**
+`agent_in`/`agent_out` — for those two, `conversation` is the **session's own
+public key in hex** (`certs::FLAG_SESSION`'s `device_pk`; see
+[`session-identity/design.md`](../../changes/cli-multi-session-relay/design-pages/session-identity-design.md)),
+never a contact root or node id, since a session isn't a contact of the
+identity at all — it's an ephemeral peer the relay admitted by a
+machine-chained cert. This is the same string already used as the
+peer-conversation key elsewhere in the app for the peer kinds, so root-pk
+keying (task 7.3, not yet wired — see "Implementation status") is a
+substitution of that one value for those kinds, not a shape change here; the
+agent kinds were never subject to that pending substitution since they never
+used a contact key to begin with. Every JSON body field name is snake_case
+(`up_to_lamport`, `from_device_pk`, `from_name`, ...) to match what
 `azula-cli`'s `eventlog.rs` produces on the wire — Kotlin's serializers pin
 `@SerialName` accordingly rather than relying on a naming-convention
 transform, so the exact field names appear literally in the recorded test
 vector below.
+
+### Agent chat fold rules (cli-multi-session-relay)
+
+`agent_in`/`agent_out` fold into `conversations` exactly like `message_in`/
+`message_out` — same total order, same map keyed by `conversation` — with
+two differences the fold marks explicitly:
+
+- **A shared dedup space.** `agent_in` shares its `(conversation, id)` dedup
+  set with `message_in` (Kotlin: one `seenIncoming` set covers both kinds,
+  rather than each kind tracking its own). Per the account-sync spec's
+  "Agent retry deduplicates" scenario — a session that retries the same
+  message `id` (e.g. after a delivery it assumed failed, or across a
+  direct-then-relay fallback) must still fold to exactly one message,
+  regardless of which kind byte ends up carrying which attempt into the log.
+  `agent_out` has no dedup, matching `message_out`'s existing posture (an
+  author's own log is never a source of duplicate entries for itself).
+- **`fromAgent` marks the history apart.** Kotlin's `FoldedMessage` gained a
+  `fromAgent: Boolean = false` field (`true` for both agent kinds), so
+  `rebuildProjection` and any other consumer can tell a session
+  conversation's history apart from an ordinary peer conversation's without
+  re-deriving it from the raw kind byte.
+- **Auto-creating the conversation.** A device receiving a relayed `agent_in`
+  for a `conversation` (session pk) it has no existing conversation for
+  auto-creates one (LLM kind, hex-fallback name) rather than dropping the
+  history — this is what lets a phone see a session it never connected to
+  directly, purely via the relay's log — and fires the identity's normal
+  new-message notification path for it, computed from the **sync-vector
+  delta** of that one sync round (never "every `agent_in` currently in the
+  fold"), so a rebuild or bootstrap replay of already-seen entries never
+  re-notifies.
+
+See [`relay/design.md`](../../changes/cli-multi-session-relay/design-pages/relay-design.md)
+for the full agent-chat delivery story (why a session ends up writing to the
+relay's log in the first place, admission checks, etc.) — this section only
+covers how those entries fold once they're in a log.
 
 ## Why per-writer logs and version vectors, not a CRDT or one canonical chain
 
@@ -185,42 +230,83 @@ understanding them, ready to fold them in correctly the moment it upgrades.
 Both the Rust and Kotlin codecs round-trip an unknown kind byte-for-byte
 (`unknown_kind_byte_round_trips` in `eventlog.rs`).
 
-## The mailbox role
+## The mailbox role, now also "the relay"
 
 A device whose certificate carries the mailbox role bit is not special
 infrastructure — it is an ordinary sibling device that additionally commits
-to always being reachable and to retaining the identity's full logs. The
-CLI's `azula mailbox` command (`mailbox_role.rs`) is the only implementation
-of this role today:
+to always being reachable and to retaining the identity's full logs. Since
+cli-multi-session-relay this role is user-facing as **`azula relay`**
+(`azula mailbox` is kept as an exact alias — same command, same identity,
+same wire-level role bit; nothing about the certificate flag or its meaning
+changed, only the name a human types). `mailbox_role.rs` (module/internal
+names intentionally kept as-is, per that change's task 4.1) is the only
+implementation of this role today:
 
 - It loads the identity `azula link` persisted, binds that device's node
-  key, and serves three ALPNs: the identity's chat ALPN (`azula/chat/0`,
-  `ChatHandler`), sync (`azula/sync/0`, the same `SyncHandler` any device
-  uses), and link (`azula/link/0`, always via `RootlessLinkHandler` — a
-  mailbox holds no root secret and can never grant a link itself).
-- Inbound chat is gated by `accept_gate::gate_peer`/`CertGate` — a peer
-  presenting a certified root already in this identity's known-contacts set
-  is admitted with no invite needed; anything else falls through to the
-  ordinary invite path (see [`invitations.md`](../invitations/design.md)).
-  Every accepted `Frame::Chat` becomes a `message_in` entry on the mailbox's
-  own log via `LogStore::append_own`.
+  key, and serves **four** ALPNs: the identity's chat ALPN (`azula/chat/0`,
+  `ChatHandler`), the LLM ALPN (`azula/llm/0`, `RelayLlmHandler` — new,
+  agent chat + A2UI snapshots, see below), sync (`azula/sync/0`, the same
+  `SyncHandler` any device uses, now with a snapshot-replay hook — see
+  below), and link (`azula/link/0`, always via `RootlessLinkHandler` — a
+  relay holds no root secret and can never grant a link itself).
+- Inbound chat (`azula/chat/0`) is gated by `accept_gate::gate_peer`/`CertGate`
+  — a peer presenting a certified root already in this identity's
+  known-contacts set is admitted with no invite needed; anything else falls
+  through to the ordinary invite path (see
+  [`invitations.md`](../invitations/design.md)). Every accepted
+  `Frame::Chat` becomes a `message_in` entry on the relay's own log via
+  `LogStore::append_own`.
+- Inbound agent chat (`azula/llm/0`) is gated differently and more strictly —
+  no invite fallback at all: a session must present a `Hello{cert}` whose
+  `azd…` cert passes `certs::verify_session_cert` **and** whose `root_pk` is
+  already in the *same* live known-roots set `gate_peer` above maintains
+  (shared via `ChatHandler::known_roots_handle()`, so a root pinned as a
+  contact on one ALPN is recognized on the other). An admitted session's
+  `Frame::Chat` becomes an `agent_in` entry (`Kind::AgentIn`, `0x09`),
+  keyed by the *session's* public key, not a contact root — see "Agent chat
+  fold rules" above and
+  [`relay/design.md`](../../changes/cli-multi-session-relay/design-pages/relay-design.md)
+  for the full admission/delivery story.
 - Store-and-forward needs no dedicated inbox logic at all: because the
-  mailbox is a full sync participant, two sibling devices that are **never
+  relay is a full sync participant, two sibling devices that are **never
   simultaneously online** still converge purely by each syncing with the
-  mailbox whenever it happens to be online — proven by
+  relay whenever it happens to be online — proven by
   `mailbox_bridges_two_never_concurrently_online_devices`, which runs device
-  A alone, syncs it with the mailbox, drops it, brings up device B alone,
+  A alone, syncs it with the relay, drops it, brings up device B alone,
   syncs *that*, and confirms both devices' final logs are byte-identical to
-  the mailbox's without A and B ever touching each other.
+  the relay's without A and B ever touching each other.
 - Bootstrap for a brand-new device is the same mechanism again: an empty
-  sync vector against the mailbox alone reproduces the full multi-device
+  sync vector against the relay alone reproduces the full multi-device
   history with no other sibling ever online
-  (`bootstrap_from_an_empty_vector_receives_full_history_from_the_mailbox_only`).
+  (`bootstrap_from_an_empty_vector_receives_full_history_from_the_mailbox_only`
+  — test name unchanged since the mechanism it proves didn't change).
 
 The CLI's older per-device JSONL bridge mailbox (`mailbox.rs`, used by
-`azula serve-mcp`/`azula pair` for offline MCP-bridge delivery) is untouched
-and independent — identity-level offline delivery for peer chat is built
-entirely on `sync::LogStore` and does not depend on it.
+`azula mcp`/`azula pair` for offline MCP-bridge delivery) is untouched and
+independent — identity-level offline delivery for peer chat is built
+entirely on `sync::LogStore` and does not depend on it. Since
+cli-multi-session-relay it is also the **last** resort in a session's
+delivery chain (direct → relay → this local JSONL queue), not the only
+fallback — see [`mcp-bridge/design.md`](../mcp-bridge/design.md#offline-delivery-direct-then-relay-then-the-local-mailbox).
+
+### A2UI state lives outside this log, on the relay only
+
+Account-sync's "Event kinds" table above has no A2UI kind, deliberately: "A2UI
+surface state SHALL NOT be written to the log in any kind." The reason is
+cost, not a missing feature — a blackjack-style game issuing one `update_ui`
+per card flip would, if logged like any other kind, append a full surface
+copy **forever**, replicated to **every device in the identity** on every
+sync, for state that only ever needs to be its *latest* value. Instead, the
+relay keeps a separate bounded side store (`core::relay_a2ui::RelayA2uiStore`
+— latest snapshot per `(conversation, surface_id)`, 256 KiB cap, tombstone
+for delete) entirely outside `sync::LogStore`, replayed to the phone as
+ordinary A2UI wire messages via a narrow hook in the sync protocol
+(`sync::PreSyncAckHook`) rather than as log entries at all. Full mechanics —
+the store's shape, the coalescing rule, the hook's before-`SyncAck` timing
+and why — are documented in
+[`relay/design.md`](../../changes/cli-multi-session-relay/design-pages/relay-design.md#a2ui-snapshots-a-bounded-side-store-outside-the-log),
+not repeated here; this note exists so a reader of this page's event-kinds
+table isn't left wondering where A2UI state went.
 
 ## `Chat.id` dedup
 
@@ -312,7 +398,7 @@ cross-language vector below is byte-identical proof that both languages
 agree on this: Kotlin's `CrossLanguageVectorTest` decodes the same base64
 literals Rust's test asserts against and re-encodes them unchanged.
 
-## Cross-language test vector: three-entry log
+## Cross-language test vector: three-entry log, extended to four
 
 Recorded by task 2.4 (`cargo test cross_language_vector` in `azula-cli`:
 `eventlog::tests::cross_language_vector_three_entry_log` in
@@ -366,6 +452,38 @@ Kotlin does not (yet) verify the Ed25519 signature bytes embedded in these
 entries — same gap as `device-linking.md`'s "Remaining gap": `core` has no
 real Ed25519 until `network-real` can supply one from iroh-kmp.
 
+### Fourth entry: `agent_in` chained after entry 3 (task 4.2)
+
+The relay capability (cli-multi-session-relay) extends this same vector with
+a fourth entry, `Kind::AgentIn` (`0x09`), chained after entry 3 above — same
+author (`device_a_pk`), `seq` 4, `lamport` 4, `prev_hash = hash(entry3)`:
+
+```
+body: {"conversation":"cafebabe","text":"hello from claude","id":"00112233445566778899aabbccddeeff","from_name":"Claude"}
+```
+
+Entry 4, base64 (standard, padded):
+
+```
+AQkXRVO0Vt3fxpCOyrHBAf5qsh4rqgYXeVt9Q6Y0gpk/1QAAAAAAAAAEAAAAAAAAAAQAAAGLz+VzuGr8OX3ecU73ydjngR0PYI8/ydUIrXhzoBEurdhakwBLAAAAc3siY29udmVyc2F0aW9uIjoiY2FmZWJhYmUiLCJ0ZXh0IjoiaGVsbG8gZnJvbSBjbGF1ZGUiLCJpZCI6IjAwMTEyMjMzNDQ1NTY2Nzc4ODk5YWFiYmNjZGRlZWZmIiwiZnJvbV9uYW1lIjoiQ2xhdWRlIn23LV+7/fV81iMfv/PrprZt9lfbZZY/+OexSqyBPoqhHHt28rCquBnuNQOFpU2Sc1+epS98Fre41O87NDdm/ykP
+```
+
+`hash(entry4)` (hex) = `522670c48faff21d9ff3558aa93aef34999ec625e5a1d322082a6ff6a6676433`.
+
+Kotlin's test for this entry
+(`CrossLanguageVectorTest.agentInEntryChainedAfterTheThreeEntryVectorDecodesAndReEncodesByteIdentical`)
+decodes this exact base64 literal, asserts every field (author, kind, `seq`,
+`lamport`, `ts_ms`, `prev_hash == hash(entry3)`, the body bytes verbatim),
+re-encodes and checks byte-identity against the same literal, and
+independently recomputes the SHA-256 hash and checks it against
+`522670c4…` above — the same three-way check (decode, re-encode,
+re-hash) the original three-entry vector performs. Unlike the original
+vector, this entry is signed with **real Ed25519** (`network-real`'s
+`IrohKmpEd25519`, backed by iroh-kmp) on the Rust side that generated the
+fixture, rather than a `FakeEd25519` stand-in; the Kotlin test still only
+decodes/re-encodes/hash-checks (no live signature verification), for the
+same "no real Ed25519 in `core` yet" reason noted above.
+
 ## Implementation status (as of this writing)
 
 - **Rust (`azula-cli`):** codecs, chain validation, the full sync session
@@ -391,6 +509,15 @@ real Ed25519 until `network-real` can supply one from iroh-kmp.
   (task 9.2) are also outstanding, as is an end-to-end manual pass across
   phone/desktop/CLI-mailbox (task 9.3) and a migration pass on an existing
   install (task 9.4).
+- **cli-multi-session-relay's `agent_in`/`agent_out` (`0x09`/`0x0A`):**
+  implemented on both sides — Rust's `mailbox_role::run_llm_session` admits
+  and appends `agent_in`; Kotlin's `AccountSyncFold`/`AccountSyncService`
+  fold, dedup, auto-create-conversation, and notify. The A2UI-snapshot
+  replay path (`Frame::SyncA2ui`, the relay's `PreSyncAckHook`) is likewise
+  implemented on both sides. See
+  [`relay/design.md`](../../changes/cli-multi-session-relay/design-pages/relay-design.md)
+  for the full picture and its own open items (the `--relay` link-enrollment
+  flag, and the still-TODO relayed CI/terminal notification push).
 
 ## Verifying changes here
 

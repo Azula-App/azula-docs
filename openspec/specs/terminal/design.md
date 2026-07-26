@@ -429,13 +429,14 @@ Wire (newline-JSON frames, mirrored in `proto.rs`/`Protocol.kt`):
   256 KiB output ring buffer, newline-boundary eviction), split into
   `session_core` (one task per PTY, feeds the ring + the current attachment,
   survives stream loss) and per-stream attachments. Re-attach: owner-bound
-  (only the creating peer's node id may resume; anyone else silently gets a
-  fresh session), replies `resumed: true`, replays the ring as ordinary
-  `term` frames, then goes live; a `resize` arriving just after resume gets
-  the SIGWINCH nudge so full-screen TUIs repaint. Detached sessions are
-  reaped after `--session-ttl <minutes>` (default 60; `0` disables
-  persistence). Ctrl-C shutdown kills all sessions (parked PTY reader
-  threads would otherwise hang runtime teardown).
+  by default (only the creating peer's node id may resume; anyone else
+  silently gets a fresh session — see "Invite-authorized attach" below for
+  the one relaxation cli-multi-session-relay adds), replies `resumed: true`,
+  replays the ring as ordinary `term` frames, then goes live; a `resize`
+  arriving just after resume gets the SIGWINCH nudge so full-screen TUIs
+  repaint. Detached sessions are reaped after `--session-ttl <minutes>`
+  (default 60; `0` disables persistence). Ctrl-C shutdown kills all sessions
+  (parked PTY reader threads would otherwise hang runtime teardown).
 - **App**: `ConversationState.termSessionId` (persisted in `ConversationDto`)
   is sent in `term_attach` on every (re)wire; `term_session` stores it,
   `term_exit` clears it. Terminals with a live session id are now eligible
@@ -448,6 +449,168 @@ Wire (newline-JSON frames, mirrored in `proto.rs`/`Protocol.kt`):
   (`Frame::Unknown`), no `term_session` ever arrives ⇒ app behaves exactly
   as before (nothing waits on it). The accept gate (invitations) always runs
   before attach is interpreted.
+
+## Host-created sessions — `azula run`'s handoff and `azula terminal`
+
+Since cli-multi-session-relay, a session can exist **before any client ever
+connects** — `term::spawn_host_shell_session(argv, size, preamble)`
+(`term.rs`) spawns `argv` (or `$SHELL -l`) in a PTY and calls the same
+`register_new_session` a client-triggered `TermAttach{session: None}` uses,
+but with `owner: None` and `invite_gated: true`, and — the one difference
+from the client-triggered path — an optional `preamble` seeded into the
+`SessionRing` *before* the session is registered or `session_core` starts
+consuming PTY output, so there's no race between the preamble and the
+process's own first real output. Two CLI features build on this:
+
+- **`azula run [--handoff on-error|always|never]`** (`cli::run_cmd`, design.md
+  D5) wraps a command in its own PTY (`spawn_pty_process`, mirroring output
+  unmodified to the real stdout/stderr so CI logs are unchanged, capturing a
+  bounded copy for `preamble`). On the handoff trigger, `start_handoff` binds
+  a fresh ephemeral session key, calls `spawn_host_shell_session` with the
+  captured output as `preamble` and a login shell as `argv`, and serves
+  `TERM_ALPN`/`LLM_ALPN` on a dedicated `Router`
+  (`TermHandler::with_default_session`, below). The result: a client that
+  attaches sees the failed command's captured output as ordinary scrollback,
+  immediately followed by a live prompt in the *same* working directory the
+  original command ran in — "continue where execution left off." The
+  process then waits (`wait_for_session_end_or_hold`) for the session to end
+  or a `--hold` timeout (default 60 minutes) to expire, then exits with the
+  **original wrapped command's** exit code, not the handoff shell's — so CI
+  still reports the failure even though a human (or another CLI) may have
+  since poked around in the recovery shell.
+- **`azula terminal`** (bare, or `new --cmd/--name` for a detached daemonized
+  host — `cli::terminal_cmd::host_session`) hosts a fresh shell the same
+  way, without any preceding captured command (`preamble` is empty). `new`
+  re-execs the same binary with a hidden `--host-detached --name N` flag,
+  redirecting its stdout/stderr to log files under
+  `$TMPDIR/azula/sessions/<name>/` and detaching it into its own process
+  group (`process_group(0)`) so it outlives the invoking shell and doesn't
+  receive that shell's job-control signals. Its identity is a **named**
+  session key (`SessionKey::resolve(Some(name))`), so restarting the same
+  `terminal new --name N` after a crash resumes the same session
+  *identity* (not the same live PTY — the shell itself is gone, but the
+  phone conversation and machine-cert chain are unchanged). `list`/`kill`
+  read/signal a JSON runtime state file
+  (`$TMPDIR/azula/sessions/<name>.json`: `{name, pid, node_id, invite_url,
+  started_at}`) distinct from the session-key files of the same name in
+  `~/.azula/sessions/`.
+
+`TermHandler::with_default_session(session_id)` is the wiring that lets a
+fresh client's very first `TermAttach{session: None}` — every real client's
+first attach, since nothing has told it an internal session id yet — resolve
+to the host-created session instead of minting a redundant empty one:
+`persistent_session`'s target resolution is `requested.or(default_session)`.
+Neither `azula run` nor `azula terminal` goes through `core::establish`/
+`SessionCore` at all — both build their own dedicated `TermHandler`/`Router`
+the same way `azula serve` always has (see
+[`cli-surface/design.md`](../../changes/cli-multi-session-relay/design-pages/cli-surface-design.md)
+for why: `SessionCore` is the *one-shot verb + long-running MCP* core; a PTY
+host has a different shape).
+
+## Invite-authorized attach
+
+A host-created session has no owner at the moment it's spawned (nothing has
+connected yet), so the pre-existing strict "only the creating peer's node id
+may resume" rule can't apply to it as written — it would mean *nobody* could
+ever attach. `find_owned_session(id, requester)` (`term.rs`) is the
+generalized authorization check both paths now go through:
+
+1. `requester` is already the session's registered owner → admit.
+2. The session is `invite_gated` (true for every host-created session, false
+   for the ordinary client-created path — unchanged there) **and**
+   `requester` is a peer this same process has itself admitted via a
+   verified invite (`registry::find_by_node_id(&requester).is_some()`,
+   which — per `accept_gate::gate_stranger`'s contract — is only ever true
+   for the *verified-invite* admission path, never `--allow-legacy`, never
+   an already-known peer re-checked) → admit, and if the session had no
+   owner yet, **claim it** for `requester` from this point on, exactly as if
+   they'd created it.
+3. Neither → `None` — a missing id, a wrong-owner id on a non-gated session,
+   and an unauthorized attempt on a gated one are all indistinguishable to
+   the caller (no probing which session ids exist); `persistent_session`
+   falls back to minting a brand-new session in every one of these cases,
+   same as today.
+
+A host-created process mints exactly one invite (the connect block's URL/QR
+— see [`session-identity/design.md`](../../changes/cli-multi-session-relay/design-pages/session-identity-design.md)),
+so redeeming it unambiguously identifies *this* session's own invite, not
+some other process's. This is what lets both the phone *and* a second CLI
+client attach to the same held session: whichever redeems the invite first
+claims ownership; the phone (if it also redeems the same invite, e.g. by
+scanning the connect block's QR) is likewise authorized via the same check.
+
+## `azula terminal attach <name|url>` — the CLI client
+
+`cli::terminal_cmd::cmd_attach` is a raw-mode passthrough client with no
+terminal emulator involved — it dials the target, sends `Hello` (redeeming
+an invite token if the target resolved to one) then `TermAttach{session:
+None}`, puts the local terminal into raw mode
+(`RawModeGuard`, restoring original `termios` settings on drop — including
+on a panic-driven unwind, so a crash mid-attach never leaves the invoking
+shell broken), and pumps bytes both directions until Ctrl-\ (ASCII FS,
+`0x1c`) or the session ends. `resolve_attach_target` accepts either a
+detached session's **name** (read from its runtime state file, giving its
+recorded invite URL) or a bare invite URL/ticket (the same `link::parse`
+forms `azula pair`/`--device` accept) — so a session started in CI, on
+another machine, or in a `--host-detached` background process can be
+continued from any laptop shell, not only from the phone. Local terminal
+resizes are forwarded live (`Frame::Resize`, on `SIGWINCH`); PTY output
+writes straight to stdout as received, with no grid/emulator layer — this is
+a dumb pipe, not a second `TerminalEmulator`.
+
+## PTY teardown hardening
+
+Three fixes landed alongside the above, all defensive against a shell that
+doesn't die politely:
+
+- **Working directory.** `portable-pty` defaults an unset PTY command's
+  `cwd` to `$HOME` — a plain terminal-emulator convention that quietly broke
+  azula's actual contract: the wrapped command (`azula run`), the handoff
+  shell, and every hosted session are supposed to run in the *invoking
+  process's* cwd (matching what the legacy path's `Frame::Profile`
+  description already announced). `spawn_pty_process` (`term.rs`, shared by
+  every PTY-spawning path in the crate) now explicitly calls
+  `cmd.cwd(std::env::current_dir())` when that succeeds, rather than
+  relying on the unset-cwd default. Covered end-to-end by
+  `cli::run_cmd`'s `failing_command_hands_off_with_scrollback_and_inherited_cwd_then_preserves_exit_code`
+  test, which asserts a `pwd` typed into the handoff shell matches the test
+  process's own `current_dir()`.
+- **SIGKILL process-group escalation.** `ChildKiller::kill()` (portable-pty's
+  polite signal, SIGHUP on unix) is not always enough — an interactive login
+  shell can survive it, leaving the PTY reader thread parked in a blocking
+  read forever. Every teardown path (`legacy_bridge`, `bind_attachment`'s
+  `--session-ttl 0` branch, `kill_all_sessions`, the TTL reaper) now follows
+  `killer.kill()` with `sigkill_process_group(child_pid)`: SIGKILL to the
+  PTY child's *process group* (it's spawned as its own session leader, so
+  this also takes down anything it spawned) and, belt-and-suspenders, to the
+  raw pid too. A stale pid (already reaped) is harmless — `kill` on it
+  simply fails.
+- **Detached, not `spawn_blocking`, PTY reader/writer threads.** The PTY
+  reader and writer bridges (`spawn_pty_process`) run on plain
+  `std::thread::spawn`, deliberately *not* `tokio::task::spawn_blocking`.
+  Tokio's blocking-thread pool is joined when the runtime drops — so a PTY
+  reader thread parked in a real, synchronous read from a still-alive shell
+  would wedge runtime teardown indefinitely (a panicking test or an
+  early-return path must never hang the whole process). Plain OS threads die
+  with the process; `session_core`/`legacy_bridge`'s async call sites keep
+  their awaitable, `JoinHandle`-shaped API via oneshot channels bridging the
+  detached threads' results back in (`reader_task`/`writer_task`), so no
+  caller had to change shape to get this safety property.
+
+## Open items
+
+Both `cli::run_cmd` and `cli::terminal_cmd` carry a `TODO(phase 4)` comment
+(still present as of this writing) for additionally pushing a relayed agent
+message through `SessionCore::send_message` when a machine identity exists —
+`azula run`'s "build failed — attach here" and a detached `azula terminal
+new` host's "session online" notice, so the phone gets a push without anyone
+watching a log. The relay delivery chain this needs now exists (see
+[`relay/design.md`](../../changes/cli-multi-session-relay/design-pages/relay-design.md)),
+but neither call site has been wired up to use it — every handoff/hosted
+session today always falls back to printing the connect block (invite URL +
+QR), even on a machine with a known relay. This is the one piece of
+design.md D3/D6 ("with a machine key, just a named-session line plus a
+relayed 'attach here' agent message to the phone") not yet implemented.
 
 ## Threading — the serial dispatcher (sharp edge)
 
@@ -486,6 +649,22 @@ safe from any thread since it's immutable once built.
   iroh-stream → frame end to end) and `term_two_sessions_over_one_connection`
   (two bi streams, one connection, independent PTYs). Run with `cargo test`
   from `azula-cli/`.
+- **`azula-cli/src/cli/run_cmd.rs`** — `should_handoff`'s on-error/always/never
+  matrix (pure), `append_capped`'s bound/keep-most-recent behavior (pure),
+  clap parsing of `--handoff`/`--hold`/the trailing wrapped command, and the
+  full-stack `failing_command_hands_off_with_scrollback_and_inherited_cwd_then_preserves_exit_code`
+  integration test (real in-process iroh pair; redeems the handoff's own
+  minted invite, asserts `resumed: true`, asserts the captured failure output
+  replays as scrollback, asserts the handoff shell's `pwd` matches the test
+  process's cwd, asserts the wrapper's own exit code is the *wrapped
+  command's* original code after the session ends).
+- **`azula-cli/src/cli/terminal_cmd.rs`** — connect-block formatting, the
+  detach-chord byte splitter (`split_at_detach_chord`), runtime state file
+  round-trip and two-concurrently-recorded-sessions listing, `pid_alive`
+  (including actually SIGTERM-ing a real throwaway child in
+  `kill_terminates_a_real_child_and_cleans_up_its_state_file`), and
+  `resolve_attach_target`'s name-vs-URL resolution (a real minted offline
+  invite, not a stand-in string).
 - **`azula-app/e2e/android.yaml`** (Maestro, against `android-app-mock`) — drives
   the real terminal UI over `FakeTransport`'s `FakeTerminalStream`
   (`mock-support/src/dev/azula/mock/FakeTransport.kt`), which auto-surfaces two
