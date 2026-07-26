@@ -64,8 +64,13 @@
 
 ## 6. Deploy
 
-- [ ] 6.1 **Needs Sal:** confirm the Cloudflare Workers Builds configuration
-      runs `npm run build` before `wrangler deploy`. `main` auto-deploys, so
-      this has to be right before the branch merges.
-- [ ] 6.2 Merge to `main` and confirm the live site: `/llms.txt`, a `.md` twin,
-      the AASA content type, and one deeplink round-trip from a phone.
+- [x] 6.1 Cloudflare Workers Builds needs a **build command** of
+      `npm run build`; the deploy command stays `npx wrangler deploy`. The
+      first push landed with no build command set and the deploy failed closed
+      (`entry-point file … was not found`, old Worker kept serving) until Sal
+      set it.
+- [x] 6.2 Merged to `main` and verified live: every route's status and content
+      type matches the pre-migration Worker, `/llms.txt` lists every page,
+      `.md` twins serve `text/markdown`, the AASA is unredirected
+      `application/json`, the deeplink pages carry the security headers and
+      render their `azula://` scheme, `POST /mcp` answers 501 JSON-RPC.
