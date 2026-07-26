@@ -6,9 +6,7 @@ state, how they replicate between that identity's own devices over the
 `azula/sync/0` ALPN, the deterministic fold that derives message history,
 contacts, device set, read state and profile from them, and the mailbox role
 that stores and forwards while other devices are offline.
-
 ## Requirements
-
 ### Requirement: Per-Device Append-Only Signed Logs
 Each enrolled device SHALL own exactly one append-only log of which it is the single writer. A log entry SHALL be a fixed big-endian payload: version (`0x01`, 1 byte); kind (1 byte); the author device public key (32 bytes); `seq` (8-byte u64, first entry `1`, strictly incremented by 1); `lamport` (8-byte u64, one greater than the highest lamport the device has seen anywhere at append time); `ts_ms` (8-byte u64 unix milliseconds, display only); `prev_hash` (32 bytes, the SHA-256 of the previous entry's full bytes, all zeros at `seq` 1); `body_len` (4-byte u32); `body_len` bytes of UTF-8 JSON body; and a trailing 64-byte Ed25519 signature by the device key over all preceding bytes. Entries SHALL be immutable once appended; receivers SHALL reject an entry whose signature, seq continuity, or `prev_hash` chain fails against what they already hold for that device.
 
@@ -21,11 +19,19 @@ Each enrolled device SHALL own exactly one append-only log of which it is the si
 - **THEN** each appends to its own log and no conflict or merge arises anywhere
 
 ### Requirement: Event Kinds
-Log entry kinds SHALL be: `0x01 message_out` (body: `{conversation, text, id?}`), `0x02 message_in` (body: `{conversation, from_device_pk, text, id?}`), `0x03 read_marker` (body: `{conversation, up_to_lamport}`), `0x04 contact_add` (body: `{root_pk | node_id, name?}`), `0x05 contact_remove` (body: same key as add), `0x06 device_add` (body: `{cert}`), `0x07 device_revoke` (body: `{revocation}`), `0x08 profile_update` (body: `{name?, description?}`). `conversation` SHALL be the contact's root public key in hex, or node id in hex for legacy contacts. Unknown kinds SHALL be stored, forwarded, and ignored at fold time so newer devices can extend the log without breaking older siblings.
+Log entry kinds SHALL be: `0x01 message_out` (body: `{conversation, text, id?}`), `0x02 message_in` (body: `{conversation, from_device_pk, text, id?}`), `0x03 read_marker` (body: `{conversation, up_to_lamport}`), `0x04 contact_add` (body: `{root_pk | node_id, name?}`), `0x05 contact_remove` (body: same key as add), `0x06 device_add` (body: `{cert}`), `0x07 device_revoke` (body: `{revocation}`), `0x08 profile_update` (body: `{name?, description?}`), `0x09 agent_in` (body: `{conversation, text, id?, from_name?}`), `0x0A agent_out` (body: `{conversation, text, id?}`). For agent kinds, `conversation` SHALL be the session's public key in hex; agent kinds SHALL fold into that session's conversation history with the same `(conversation, id)` dedup rule as peer chat, and a device receiving a relayed `agent_in` for a new conversation SHALL surface it with its normal new-message notification path. A2UI surface state SHALL NOT be written to the log in any kind. `conversation` for peer kinds SHALL be the contact's root public key in hex, or node id in hex for legacy contacts. Unknown kinds SHALL be stored, forwarded, and ignored at fold time so newer devices can extend the log without breaking older siblings.
 
 #### Scenario: Unknown kind passes through
 - **WHEN** a device receives an entry with an unrecognized kind byte from a newer sibling
 - **THEN** it stores and re-serves the entry during sync but excludes it from its own derived state
+
+#### Scenario: Relayed agent message folds into the session conversation
+- **WHEN** the phone syncs an `agent_in` entry the relay logged while the phone was offline
+- **THEN** the message appears in the conversation keyed by that session's public key and fires the normal message notification
+
+#### Scenario: Agent retry deduplicates
+- **WHEN** a session delivers a message directly and, after a timeout, retries the same `id` via the relay
+- **THEN** the fold shows the message exactly once
 
 ### Requirement: Sync Runs Only Between Same-Root Certified Devices
 The `azula/sync/0` ALPN SHALL exchange newline-delimited JSON frames and SHALL begin with mutual `SyncHello{cert}`; each side SHALL verify the other's certificate chains to its own root key and that the transport node id matches the certificate's device key, closing the connection otherwise. Both sides then send `SyncVector{vector}` — a map of device public key hex to highest contiguous `seq` held — then stream `SyncEntries{entries}` (base64 entry payloads, at most 64 per frame, per-device in ascending `seq` order) for entries the other side lacks, then `SyncAck{vector}`. While the connection stays open, each side SHALL push newly appended entries immediately.
@@ -98,3 +104,4 @@ Sync SHALL be internal to an identity: peers without certificates SHALL see only
 #### Scenario: Old peer, synced history
 - **WHEN** a legacy single-device peer chats with a multi-device identity
 - **THEN** the legacy peer's experience is unchanged while the identity's devices all converge on the conversation history
+

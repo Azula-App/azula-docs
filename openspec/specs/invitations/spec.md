@@ -6,7 +6,6 @@ trust and verification model that replaces bare iroh tickets — a
 permanent bearer credential — with a revocable, time-bounded, optionally
 single-use and signed credential that must be re-presented to its issuer
 at connect time.
-
 ## Requirements
 ### Requirement: Issuer-Side Persistence Is Authoritative
 Acceptance of an invite SHALL be gated solely by the issuer's own
@@ -121,6 +120,7 @@ On the app, a stranger presenting a valid invite SHALL become a persisted pendin
 #### Scenario: Accepting a certified stranger pins the root
 - **WHEN** the user accepts a pending stranger whose `Hello` carried a valid certificate
 - **THEN** the contact is recorded by root public key, and that identity's other certified devices are subsequently known
+
 ### Requirement: Guest Redemption
 Redeeming an invite (by paste, scan, or deep link) SHALL NOT require the
 redeemer to have a profile. Connecting as a guest SHALL be fully
@@ -171,6 +171,7 @@ distinct from the `serve-mcp`/bridge identity's).
   the bridge (`serve-mcp`) identity, or vice versa
 - **THEN** verification SHALL fail because the `invite_id` does not exist
   in that identity's issued-invite store
+
 ### Requirement: Hello Carries an Optional Device Certificate
 The `Hello` frame SHALL gain an optional `cert` field carrying the sender's encoded device certificate (`azd…`), included by certificate-holding peers on every ALPN in both directions. A receiver SHALL verify a presented certificate (signature against its embedded root key, version, expiry, and any known revocation) before using it; a certificate that fails verification SHALL be treated exactly as if the field were absent — it grants nothing and the connection proceeds through the existing stranger/invite path. Peers that omit the field SHALL continue to function with no version negotiation, exactly as the `invite` field does today.
 
@@ -196,4 +197,22 @@ Accepting a peer that presented a valid device certificate SHALL record the cert
 #### Scenario: Legacy contact stays node-id keyed
 - **WHEN** a peer that has never presented a certificate connects
 - **THEN** its conversation and contact entry remain keyed by node id exactly as before this change
+
+### Requirement: Session Certificates Admit Strangers Without an Invite
+The accept gate SHALL admit a connecting stranger with no invite and no pending prompt when its `Hello.cert` is a valid session certificate chaining to an already-paired machine: the cert self-verifies (signature by its `root_pk`, unexpired), carries the session role flag, its `root_pk` equals a known machine contact's key, and its `device_pk` equals the transport peer node id. All five checks SHALL be required; a failure of any SHALL fall through to the ordinary invite verification path, never to an error that blocks the invite path.
+
+#### Scenario: All checks pass
+- **WHEN** a stranger's `Hello.cert` passes signature, expiry, session-flag, known-machine, and transport-binding checks
+- **THEN** the peer is admitted as a known session and no pending request is created
+
+#### Scenario: Expired session cert falls through
+- **WHEN** a stranger presents a session cert that is expired but otherwise valid
+- **THEN** the cert path does not admit it and the connection proceeds through invite verification as an ordinary stranger
+
+### Requirement: Machine Pairing Shares a Relay Hint
+When a machine pairing is accepted, the phone SHALL share a relay hint (its relay device's ticket, when one is enrolled) with the paired machine, and the CLI SHALL persist it per device in the registry so sessions can deliver to the relay when the phone is unreachable. Absence of a relay hint SHALL leave delivery behavior as it was (local mailbox fallback).
+
+#### Scenario: Hint persisted at pairing
+- **WHEN** a phone with an enrolled relay accepts a machine pairing
+- **THEN** the machine's registry entry for that phone records the relay ticket
 

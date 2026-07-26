@@ -5,9 +5,7 @@ Defines the device-certificate layer: how a root identity key issues
 certificates binding device keys to itself, how devices present and verify
 them, how owners revoke them, the QR-link and recovery-phrase enrollment flows
 by which a new device joins an identity, and the registry each device keeps.
-
 ## Requirements
-
 ### Requirement: Device Certificates Bind Device Keys to a Root Identity
 A device certificate SHALL be a fixed big-endian binary payload: a 1-byte version (`0x01`); a 1-byte roles field (bit 0 = mailbox, bit 1 = bot — reserved, never set by this change — bits 2–7 reserved, `0` on encode and ignored on decode); the 32-byte root public key; the 32-byte device public key; a 4-byte `issued_at` (u32 unix seconds); a 4-byte `expires_at` (u32 unix seconds, `0` meaning never); a 1-byte `name_len` (0–63); `name_len` bytes of UTF-8 display name; and a trailing 64-byte Ed25519 signature by the root secret over all preceding bytes. The encoded form SHALL be the literal prefix `"azd"` followed by unpadded, lowercase RFC 4648 base32 of the payload.
 
@@ -80,3 +78,15 @@ Each enrolled device SHALL persist: the root public key, the root secret iff phr
 #### Scenario: Registry cache loss is recoverable
 - **WHEN** a device loses its registry cache but keeps its keys
 - **THEN** re-syncing with any sibling restores certificates, revocations, and contacts without re-enrollment
+
+### Requirement: Session Certificate Kind
+The `azd…` certificate format SHALL support a session role flag distinguishing an ephemeral CLI session from sibling-device enrollment. A session certificate SHALL bind a session public key (`device_pk`) to a machine identity key (`root_pk`), SHALL carry an expiry (default 7 days), and SHALL NOT enroll its holder as a device of any multi-device identity: it grants conversation access to peers that have paired with the machine, nothing more — no sync participation, no log authorship in the paired identity, no link-granting authority.
+
+#### Scenario: Session cert is not an identity device
+- **WHEN** a peer holding only a session certificate attempts an `azula/sync/0` session with an identity device
+- **THEN** the sync hello verification rejects it (its cert does not chain to that identity's root)
+
+#### Scenario: Self-certified headless session
+- **WHEN** a headless process mints a session key with itself as root (`device_pk == root_pk`) for scan-per-session pairing
+- **THEN** the certificate is well-formed and verifiable, and admission still requires the user to redeem its invite from the phone
+

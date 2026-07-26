@@ -53,7 +53,6 @@
 - [x] 7.2 crates.io publish (lib + bin; demos excluded); verify crate-name availability, adjust metadata
 - [x] 7.3 npm: per-platform packages + meta launcher package; `npx <meta> mcp` path verified; name availability checked
 - [x] 7.4 Homebrew tap repo + formula; workflow pushes version/sha bumps
-- [ ] 7.5 Verify relay-only (no-UDP) operation and document proxy allowlist hosts for Claude Code web containers; README + azula-site install pointers
 
 ## 8. Docs + archive
 
@@ -67,3 +66,4 @@
 - [ ] 9.2 Relayed "session online" attach notification from `azula run`/`terminal new` hosts holding a machine identity (TODO(phase 4) hook in `terminal_cmd.rs`/`run_cmd.rs` — relay delivery chain now exists, wire it up)
 - [ ] 9.3 First release: create tap repo + npm org, add CARGO_REGISTRY_TOKEN/NPM_TOKEN/TAP_PUSH_TOKEN secrets, re-check name availability, push v* tag (needs maintainer go-ahead)
 - [ ] 9.4 Kotlin-side notification for synced peer `message_in` (only `agent_in` notifies today; pre-existing gap made visible by phase 6)
+- [ ] 9.5 Verify relay-only (no-UDP) operation from a real Claude Code web container and confirm the documented proxy-allowlist hosts; add azula-site install pointers (moved from 7.5 — not verifiable from the dev machine)
