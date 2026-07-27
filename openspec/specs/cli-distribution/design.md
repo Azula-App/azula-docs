@@ -103,26 +103,27 @@ meta package with a tiny launcher.
     `cli-linux-arm64/` — each `{name: "@azula-app/cli-<platform>", version,
     os, cpu}` plus the one `azula` binary for that platform, marked
     executable.
-  - `npm-out/azula-cli/` — the meta package (from `dist/npm/package.json`'s
-    template), whose `optionalDependencies` list all four platform packages
-    pinned to the same version; npm's own platform-matching machinery
-    resolves and installs only the one matching `os`/`cpu` on `npm install`.
+  - `npm-out/cli/` — the meta package (from `dist/npm/package.json`'s
+    template, `name: "@azula-app/cli"`), whose `optionalDependencies` list
+    all four platform packages pinned to the same version; npm's own
+    platform-matching machinery resolves and installs only the one matching
+    `os`/`cpu` on `npm install`.
 - **`bin/azula.js`** — the meta package's launcher: a small Node script
   (`PLATFORM_PACKAGES` map from `process.platform`/`process.arch` to the
   right `@azula-app/cli-*` package name) that locates the installed platform
   package's binary and `execFileSync`s it with the process's own argv,
-  forwarding stdio and exit code — this is what makes `npx -y azula-cli mcp`
-  behave exactly like a native `azula mcp` invocation, including as a stdio
-  MCP server (no wrapper-added stdout noise that would corrupt the JSON-RPC
-  stream).
+  forwarding stdio and exit code — this is what makes `npx -y @azula-app/cli
+  mcp` behave exactly like a native `azula mcp` invocation, including as a
+  stdio MCP server (no wrapper-added stdout noise that would corrupt the
+  JSON-RPC stream).
 
 This is what makes both of these work without any prior install:
 
 ```jsonc
-{"mcpServers": {"azula": {"command": "npx", "args": ["-y", "azula-cli", "mcp"]}}}
+{"mcpServers": {"azula": {"command": "npx", "args": ["-y", "@azula-app/cli", "mcp"]}}}
 ```
 ```sh
-npx -y azula-cli --version   # fetches the right platform package, execs it
+npx -y @azula-app/cli --version   # fetches the right platform package, execs it
 ```
 
 ## Homebrew (`dist/homebrew/`)
@@ -162,26 +163,30 @@ formula's download URLs) needs confirming as the actual final repo location
 before the first tag — it's simply what `git remote -v` pointed to in the
 worktree this was authored in.
 
-## Name availability (checked 2026-07-24, per `dist/README.md`)
+## Package naming (as published)
 
 | Registry | Name | Status |
 |---|---|---|
-| crates.io | `azula` | **Available** |
-| crates.io | `azula-cli` (D7 fallback) | Available (not needed) |
-| npm | `azula-cli` | **Available** |
-| npm | `@azula-app/cli-darwin-arm64` (and the other three) | Not independently reserved until first publish; the `azula-app` npm org itself must still be created manually regardless |
+| crates.io | `azula` | **Published** — `0.1.1` current, `0.1.0` yanked |
+| npm | `@azula-app/cli` (meta package) | Not yet published |
+| npm | `@azula-app/cli-darwin-arm64` (and the other three platform packages) | Not yet published |
+| Homebrew | `azula-app/azula/azula` (tap `Azula-App/homebrew-azula`) | Not yet published |
 
-Both primary D7 names are free, so no fallback is needed as of that check.
-**Re-check immediately before the first tagged release** — `cargo publish`/
-`npm publish` fail loudly if a name was claimed in the meantime, but the
-fallback path (documented in D7 and `dist/README.md`) is a coordinated,
-multi-file rename: `dist/npm/package.json`, `dist/npm/generate.mjs` (the
-`SCOPE`/`META_NAME` constants and the `@azula-app/cli-*` package names),
-`dist/npm/bin/azula.js` (`PLATFORM_PACKAGES`), and, for the crates.io
-fallback specifically, the root `Cargo.toml`'s `[package] name` — a breaking
-change for anyone who already ran `cargo install azula`, so this one is
-worth confirming free *before* the first release rather than dealing with
-after.
+The crates.io name needed no fallback — `azula` was available (checked
+2026-07-24, per `dist/README.md`) and published as planned, so the D7
+`azula-cli` crates.io fallback was never used.
+
+The npm **meta** package did take a different name than originally checked:
+unscoped `azula-cli` was available as of the same 2026-07-24 check, but was
+abandoned before the first publish in favor of the scoped `@azula-app/cli` —
+matching the four platform packages (always scoped under the `azula-app`
+org) and sidestepping any confusion with the unrelated, unscoped `azula`
+package already on npm (a 2019 Node GUI project, no relation).
+`dist/npm/package.json`, `dist/npm/generate.mjs` (the `SCOPE`/`META_NAME`
+constants), and `dist/npm/bin/azula.js` (`PLATFORM_PACKAGES`) all carry
+`@azula-app/cli` as the meta package name now. The `azula-app` npm org and
+the first `npm publish` are still outstanding, along with the Homebrew tap
+repo and its first formula push.
 
 ## Relay-only (no-UDP) networking — the Claude Code web container case
 
@@ -215,7 +220,6 @@ There is no unit-test suite for the release workflow itself (it's CI-only
 YAML plus a small Node generator script); verification is by inspection —
 `dist/README.md`'s recorded name-availability check, and the workflow's own
 `version-guard` job acting as a build-time consistency check every release
-run exercises for free. `dist/npm/generate.mjs` has no `azula-cli`-internal
-test harness of its own; the closest thing to a check is running it by hand
-against a `bin-download/` directory shaped like `build-and-release`'s
-output.
+run exercises for free. `dist/npm/generate.mjs` has no test harness of its
+own; the closest thing to a check is running it by hand against a
+`bin-download/` directory shaped like `build-and-release`'s output.
