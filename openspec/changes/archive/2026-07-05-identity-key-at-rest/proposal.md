@@ -4,7 +4,7 @@ The secret key needed to be encrypted at rest on every platform. Android
 already had this (Keystore-backed `EncryptedSharedPreferences`); iOS stored it
 in plaintext `NSUserDefaults`; desktop stored it in a plaintext
 `~/.azula/endpoint.key` file. Separately, a locked-Keychain-at-launch gap on
-macOS could silently mint a new identity (changing the node id) instead of
+macOS could silently mint a new identity (changing the endpoint id) instead of
 failing loudly.
 
 (Context: a 2026-07-02 cross-repo audit produced ten numbered findings across
@@ -34,7 +34,7 @@ work, which landed a few days later on 2026-07-05.)
   rethrows that exception rather than degrading to a fresh key. A
   temporarily-unreadable Keychain now fails loudly ("unlock the login
   keychain and relaunch") instead of silently minting a new identity and
-  changing the node id.
+  changing the endpoint id.
 
 ## Verification
 

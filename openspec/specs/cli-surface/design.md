@@ -132,7 +132,7 @@ shape is small and verb-specific:
 | `ui delete` | `{"status":"deleted","device":…,"surface":…}` |
 | `ui catalog` | `{"catalog":"<the full A2UI_CATALOG prose>"}` |
 | `devices` | array of `{"name":…,"fingerprint":…,"source":…,"relay":bool}` |
-| `terminal list` | array of `{"name":…,"pid":…,"alive":bool,"node_id":…,"invite_url":…,"started_at":…}` |
+| `terminal list` | array of `{"name":…,"pid":…,"alive":bool,"endpoint_id":…,"invite_url":…,"started_at":…}` |
 | `status` | `{"machine_identity":{…},"devices":[…],"sessions":[…]}` (see below) |
 | `watch --json` | one `WatchEvent` per line (below) |
 
@@ -177,7 +177,7 @@ state files ... + registry; do not bind an endpoint." It reads:
 
 - **Machine identity** — `identity::load_machine_secret_if_exists()`
   (read-only; never creates one). `{"machine_identity":{"present":false}}`
-  when headless, or `{"present":true,"node_id":"<hex>"}`.
+  when headless, or `{"present":true,"endpoint_id":"<hex>"}`.
 - **Devices** — the merged registry (`registry::load()`) unioned with the
   last-written runtime state file's device list (`core::state::read_state`),
   each tagged `source: "project"|"global"|"runtime"` (the last meaning
@@ -341,5 +341,5 @@ commands: `LinkArgs` in `cli/legacy.rs` defines `#[arg(long, alias =
   and `WatchEvent`'s exact `--json` serialization per variant.
 - `core/status.rs` — `compute()` against seeded temp registry/state/session
   directories (headless case: no machine key), and a machine-identity-present
-  case asserting the hex `node_id` matches the minted key.
+  case asserting the hex `endpoint_id` matches the minted key.
 - Run: `cargo test` from `azula-cli/`.

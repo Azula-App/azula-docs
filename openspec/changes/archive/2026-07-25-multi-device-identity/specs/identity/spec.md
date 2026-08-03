@@ -2,34 +2,34 @@
 
 ## ADDED Requirements
 
-### Requirement: Identity Is a Root Keypair Above Device Node Keys
-An azula identity SHALL be a root Ed25519 keypair whose 32-byte secret is the identity's single recoverable secret; each device SHALL additionally hold its own iroh node keypair used for transport. Peers SHALL identify a contact by the root public key. A device SHALL present its membership in an identity via a device certificate signed by the root key (see `device-linking`). On first launch after upgrade, an existing single-device identity's node secret SHALL become the root secret unchanged, and that device SHALL continue using the same key as its device key (a self-certificate with `device_pk == root_pk`), so its recovery phrase, node id, and existing contacts all remain valid.
+### Requirement: Identity Is a Root Keypair Above Device Endpoint Keys
+An azula identity SHALL be a root Ed25519 keypair whose 32-byte secret is the identity's single recoverable secret; each device SHALL additionally hold its own iroh endpoint keypair used for transport. Peers SHALL identify a contact by the root public key. A device SHALL present its membership in an identity via a device certificate signed by the root key (see `device-linking`). On first launch after upgrade, an existing single-device identity's endpoint secret SHALL become the root secret unchanged, and that device SHALL continue using the same key as its device key (a self-certificate with `device_pk == root_pk`), so its recovery phrase, endpoint id, and existing contacts all remain valid.
 
-#### Scenario: Upgrade preserves phrase and node id
+#### Scenario: Upgrade preserves phrase and endpoint id
 - **WHEN** a device with a pre-multi-device identity first launches the upgraded app
-- **THEN** the existing secret becomes the root secret, the recovery phrase and node id are unchanged, and a self-certificate with `device_pk == root_pk` is issued
+- **THEN** the existing secret becomes the root secret, the recovery phrase and endpoint id are unchanged, and a self-certificate with `device_pk == root_pk` is issued
 
-#### Scenario: A second device has a distinct node id
+#### Scenario: A second device has a distinct endpoint id
 - **WHEN** a second device is enrolled onto an identity
-- **THEN** it holds its own node keypair with a different node id, and peers associate both devices with the same root public key
+- **THEN** it holds its own endpoint keypair with a different endpoint id, and peers associate both devices with the same root public key
 
 ### Requirement: Key Roles and Signing Boundaries
-Key material SHALL sign data outside transport TLS in exactly three places: a device node key SHALL sign issued invitations (verified against the node id in the invite's ticket, unchanged); the root key SHALL sign device certificates; and the root key SHALL sign revocation statements. No other payloads SHALL be signed by identity or device key material.
+Key material SHALL sign data outside transport TLS in exactly three places: a device endpoint key SHALL sign issued invitations (verified against the endpoint id in the invite's ticket, unchanged); the root key SHALL sign device certificates; and the root key SHALL sign revocation statements. No other payloads SHALL be signed by identity or device key material.
 
 #### Scenario: Invite signed by a device key still verifies
 - **WHEN** any enrolled device of an identity mints a signed invite
-- **THEN** the signature verifies against that device's node id embedded in the invite's ticket, exactly as for a single-device identity
+- **THEN** the signature verifies against that device's endpoint id embedded in the invite's ticket, exactly as for a single-device identity
 
 #### Scenario: Certificate not signed by the root is invalid
 - **WHEN** a device certificate's signature does not verify against the certificate's embedded root public key
 - **THEN** the certificate is treated as invalid and grants no identity association
 
 ### Requirement: Restore Recovers the Identity Onto This Device
-Submitting a valid 24-word recovery phrase SHALL enroll the current device into the identity rather than replacing any key in place: the device SHALL retain (or mint, on a fresh install) its own node keypair, store the decoded root secret, self-issue a device certificate, append a `device_add` log entry, and begin syncing (see `account-sync`). An invalid phrase SHALL leave existing state unchanged and show an inline error. If the device previously held a different identity, that identity's root secret SHALL be overwritten only after the new phrase validates. A failed transport re-bind SHALL NOT fail the restore — the enrollment is committed locally and the transport degrades to offline exactly as a failed initial bind does.
+Submitting a valid 24-word recovery phrase SHALL enroll the current device into the identity rather than replacing any key in place: the device SHALL retain (or mint, on a fresh install) its own endpoint keypair, store the decoded root secret, self-issue a device certificate, append a `device_add` log entry, and begin syncing (see `account-sync`). An invalid phrase SHALL leave existing state unchanged and show an inline error. If the device previously held a different identity, that identity's root secret SHALL be overwritten only after the new phrase validates. A failed transport re-bind SHALL NOT fail the restore — the enrollment is committed locally and the transport degrades to offline exactly as a failed initial bind does.
 
 #### Scenario: Restore on a second device adds a device
 - **WHEN** a valid phrase for an existing identity is submitted on a fresh device
-- **THEN** the device joins the identity as a new device with its own node id, and the identity's other devices continue operating undisturbed
+- **THEN** the device joins the identity as a new device with its own endpoint id, and the identity's other devices continue operating undisturbed
 
 #### Scenario: Invalid restore attempt
 - **WHEN** an invalid phrase is submitted to restore
@@ -42,7 +42,7 @@ Submitting a valid 24-word recovery phrase SHALL enroll the current device into 
 ## MODIFIED Requirements
 
 ### Requirement: 24-Word BIP-39 Recovery Phrase Encoding
-The 32-byte root secret key SHALL be encoded as a standard BIP-39 24-word English mnemonic: an 8-bit checksum (the first byte of SHA-256 of the key) SHALL be appended to the 256 key bits, and the resulting 264 bits SHALL be chunked into 24 eleven-bit indices into the 2048-word BIP-39 wordlist. Device node keys SHALL NOT have mnemonic encodings — the phrase encodes only the root secret.
+The 32-byte root secret key SHALL be encoded as a standard BIP-39 24-word English mnemonic: an 8-bit checksum (the first byte of SHA-256 of the key) SHALL be appended to the 256 key bits, and the resulting 264 bits SHALL be chunked into 24 eleven-bit indices into the 2048-word BIP-39 wordlist. Device endpoint keys SHALL NOT have mnemonic encodings — the phrase encodes only the root secret.
 
 #### Scenario: All-zero key vector
 - **WHEN** encoding a key of all-zero entropy
@@ -58,7 +58,7 @@ The 32-byte root secret key SHALL be encoded as a standard BIP-39 24-word Englis
 - **THEN** the app explains that the phrase lives with root-holding devices instead of showing a phrase for the device key
 
 ### Requirement: Per-Platform Key-at-Rest Storage
-Each platform SHALL persist the device node key, and the root secret when this device holds one, through the shared transport export/import seam, using its existing storage mechanism: JVM desktop in the macOS login Keychain (plain file off-mac); Android inside an encrypted preferences store (Keystore-backed AES), self-healing a corrupt keyset by recreating the store rather than falling back to a demo identity; iOS in the platform keychain-backed store. The root secret and node key SHALL be stored under distinct entries. `-mock` apps SHALL persist no key — every launch SHALL generate a throwaway identity.
+Each platform SHALL persist the device endpoint key, and the root secret when this device holds one, through the shared transport export/import seam, using its existing storage mechanism: JVM desktop in the macOS login Keychain (plain file off-mac); Android inside an encrypted preferences store (Keystore-backed AES), self-healing a corrupt keyset by recreating the store rather than falling back to a demo identity; iOS in the platform keychain-backed store. The root secret and endpoint key SHALL be stored under distinct entries. `-mock` apps SHALL persist no key — every launch SHALL generate a throwaway identity.
 
 #### Scenario: Android corrupt keyset self-heal
 - **WHEN** Android detects a corrupt encrypted keyset on read
@@ -71,7 +71,7 @@ Each platform SHALL persist the device node key, and the root secret when this d
 
 #### Scenario: QR-linked device stores no root secret
 - **WHEN** a device was enrolled via QR-link
-- **THEN** its key store contains its node key and certificate but no root secret entry
+- **THEN** its key store contains its endpoint key and certificate but no root secret entry
 
 ### Requirement: Recovery Phrase Security Properties
 The recovery phrase SHALL be sufficient on its own for full control of the identity, with no additional PIN or passphrase layer — anyone holding the 24 words SHALL be able to enroll a device with root authority, including issuing and revoking device certificates. The phrase itself SHALL NOT encode message history, contacts, or peer tickets; history reaches a restored device only by syncing from the identity's reachable devices. The 8-bit checksum SHALL be treated as a transcription-error check, not a tampering or security boundary.
@@ -86,13 +86,13 @@ The recovery phrase SHALL be sufficient on its own for full control of the ident
 
 ## REMOVED Requirements
 
-### Requirement: Identity Is an iroh Node Keypair
-**Reason**: Identity is redefined as a root keypair above per-device node keys; the 1:1 identity-to-node-key equivalence no longer holds.
-**Migration**: See `Identity Is a Root Keypair Above Device Node Keys` — existing identities upgrade in place with the old node secret becoming the root secret.
+### Requirement: Identity Is an iroh Endpoint Keypair
+**Reason**: Identity is redefined as a root keypair above per-device endpoint keys; the 1:1 identity-to-endpoint-key equivalence no longer holds.
+**Migration**: See `Identity Is a Root Keypair Above Device Endpoint Keys` — existing identities upgrade in place with the old endpoint secret becoming the root secret.
 
 ### Requirement: Identity Key Also Signs Invitations
 **Reason**: Signing boundaries now span two key kinds (device keys sign invites; the root key signs certificates and revocations), replaced by `Key Roles and Signing Boundaries`.
-**Migration**: Invite signing/verification mechanics are unchanged — only the key's name changed (the signing key is the device node key).
+**Migration**: Invite signing/verification mechanics are unchanged — only the key's name changed (the signing key is the device endpoint key).
 
 ### Requirement: Restore Flow Replaces the Identity In Place
 **Reason**: Restore no longer replaces a device's key; it enrolls the device into the recovered identity. This also resolves the open decisions in the in-flight `recovery-restore-ux` change.

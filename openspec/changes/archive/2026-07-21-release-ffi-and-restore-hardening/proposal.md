@@ -48,7 +48,7 @@ fixing on its own:
   connection until relaunch.
 - `AzulaState.start()` is idempotent. Android calls it twice (Application, then
   the composition's `SetupGate`); only the gate decision was guarded, so a second
-  endpoint was bound on the same secret key — two nodes sharing one node id, the
+  endpoint was bound on the same secret key — two endpoints sharing one endpoint id, the
   first orphaned along with its accept loop.
 
 Not breaking: no public API changes. The SDK version bump is a normal release.

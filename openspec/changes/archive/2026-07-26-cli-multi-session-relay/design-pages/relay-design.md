@@ -46,7 +46,7 @@ neither is "canonical" internally). The wire-level role bit is unchanged
 (`FLAG_MAILBOX = 0x01` — no new flag was minted for "relay"; a relay device
 is, on the wire, exactly the mailbox-role device the app has always known
 about). `mailbox_role::run` loads the identity `azula link` persisted, binds
-that device's node key, and serves four ALPNs:
+that device's endpoint key, and serves four ALPNs:
 
 | ALPN | Handler | Role |
 |---|---|---|
@@ -81,8 +81,8 @@ connecting session must, within 15 s (`LLM_HELLO_TIMEOUT`), present a
 `Hello{cert}` whose cert:
 
 1. decodes as a `DeviceCert`;
-2. passes `certs::verify_session_cert(cert, remote_node_id)` — signature,
-   unexpired, `FLAG_SESSION` set, `device_pk == remote_node_id` (see
+2. passes `certs::verify_session_cert(cert, remote_endpoint_id)` — signature,
+   unexpired, `FLAG_SESSION` set, `device_pk == remote_endpoint_id` (see
    [`session-identity-design.md`](session-identity-design.md));
 3. has a `root_pk` already present in the relay's **live known-roots set**.
 
@@ -97,7 +97,7 @@ admitted.
 
 On success, `conversation` for everything this session sends is its own
 public key hex (`cert.device_pk`, which by construction already equals
-`remote_node_id`) — never the machine's root key. Two frame types are
+`remote_endpoint_id`) — never the machine's root key. Two frame types are
 handled, everything else ignored (this ALPN carries agent chat and A2UI
 snapshots only):
 
@@ -194,7 +194,7 @@ data class AgentOutBody(val conversation: String, val text: String, val id: Stri
 
 `AccountSyncFold.kt` folds both into `conversations: LinkedHashMap<String,
 List<FoldedMessage>>` keyed by `body.conversation` (the session's public key
-hex, never a contact root/node id) — a `FoldedMessage` gained a `fromAgent:
+hex, never a contact root/endpoint id) — a `FoldedMessage` gained a `fromAgent:
 Boolean = false` field, `true` for both agent kinds, letting
 `rebuildProjection` and other consumers tell a session conversation's
 history apart from an ordinary peer conversation's. `AGENT_IN` shares its

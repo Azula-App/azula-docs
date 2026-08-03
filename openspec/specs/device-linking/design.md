@@ -1,6 +1,6 @@
 # Device Linking — certificates, enrollment, and revocation
 
-Device linking is the layer that turns a single iroh node keypair into one
+Device linking is the layer that turns a single iroh endpoint keypair into one
 device of a multi-device **identity** (see [`identity.md`](../identity/design.md)):
 a root Ed25519 keypair signs per-device **certificates**, a device presents
 its certificate to be recognized as that identity, and a **revocation**
@@ -23,7 +23,7 @@ public key to a root public key, signed by the root secret:
 | 0 | 1 | `version` | `0x01`; reject anything else |
 | 1 | 1 | `flags` | bit 0 = mailbox role, bit 1 = bot role (reserved, never set by this change), bits 2–7 reserved (must be `0` on encode, ignored on decode) |
 | 2 | 32 | `root_pk` | Ed25519 root public key |
-| 34 | 32 | `device_pk` | Ed25519 device (iroh node) public key |
+| 34 | 32 | `device_pk` | Ed25519 device (iroh endpoint) public key |
 | 66 | 4 | `issued_at` | unix seconds, u32 |
 | 70 | 4 | `expires_at` | unix seconds, u32; `0` = never expires |
 | 74 | 1 | `name_len` | 0–63 (`n`) |
@@ -51,7 +51,7 @@ invitation to be scanned, not a grant:
 | offset | size | field | notes |
 |---|---|---|---|
 | 0 | 1 | `version` | `0x01` |
-| 1 | 32 | `device_pk` | the new device's freshly generated node key |
+| 1 | 32 | `device_pk` | the new device's freshly generated endpoint key |
 | 33 | 1 | `name_len` | 0–63 (`n`) |
 | 34 | n | `name` | UTF-8 requested display name |
 | 34+n | 2 | `ticket_len` | u16, big-endian (`m`) |
@@ -85,10 +85,10 @@ certificate is bytes: it travels in `LinkGrant` bundles, `Hello.cert` fields,
 and sync exchanges, so anyone who has ever seen a connection to that device
 has seen its certificate too. What a certificate cannot do is prove that
 whoever is presenting it *right now* holds the matching Ed25519 secret —
-only the transport handshake proves that, because iroh's node id **is**
+only the transport handshake proves that, because iroh's endpoint id **is**
 derived from the same keypair the certificate names as `device_pk`. So a
 verified certificate confers **nothing** until the caller separately checks
-that the connection's actual transport node id equals the certificate's
+that the connection's actual transport endpoint id equals the certificate's
 `device_pk` (`DeviceCert::binds_to_connection` /
 `DeviceCert.devicePk` compared against `IncomingConnection.remoteId`). Skip
 that check and a certificate copied off the wire from a legitimate exchange
@@ -136,7 +136,7 @@ order-independence and different-inputs-differ properties independently.
 QR-link enrollment runs over the `azula/link/0` ALPN, newline-delimited JSON
 like every other frame protocol in this codebase:
 
-1. The **new device** generates a node keypair, builds an `azl…` payload
+1. The **new device** generates a endpoint keypair, builds an `azl…` payload
    naming its own `device_pk`, requested name, and a connect ticket to
    itself, and displays it as a QR and copyable string — then listens.
 2. The **root-holding device** scans or pastes the payload, decodes it, and
@@ -144,7 +144,7 @@ like every other frame protocol in this codebase:
 3. Once the connection is up, **both sides compute and display the four
    verification words** from the two device public keys — the new device's
    own generated key, and the root-holding device's own (already-certified)
-   node id, which is also the connection's transport peer id from the new
+   endpoint id, which is also the connection's transport peer id from the new
    device's side. This happens before either side sends or reads a single
    `azula/link/0` frame.
 4. The new device sends `LinkHello{device_pk, name, roles}` (`roles` carries
@@ -239,11 +239,11 @@ identity without re-enrolling if the cache is lost — the spec's "Registry
 cache loss is recoverable" scenario. On the CLI, `azula link`'s only
 persisted state is `~/.azula/link-identity.json`
 (`linked_identity::LinkedIdentity { cert, bundle }`), written once a grant
-verifies; the device's own node secret is persisted completely separately,
+verifies; the device's own endpoint secret is persisted completely separately,
 under the identity name `"link"` (`~/.azula/link.key`, distinct from
 `serve`/`bridge`/`blackjack`'s own persistent identities). Losing
-`link-identity.json` alone degrades to "run `azula link` again" — the node
-key, and therefore the node id peers/siblings already know, survives.
+`link-identity.json` alone degrades to "run `azula link` again" — the endpoint
+key, and therefore the endpoint id peers/siblings already know, survives.
 `azula mailbox` reads this same file to serve the mailbox role; it holds no
 separate registry of its own.
 

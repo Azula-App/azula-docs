@@ -221,7 +221,7 @@ reason about:
 
 - `~/.azula/machine.key` — the stable per-machine root every session's
   certificate chains to. Adopted in place from a pre-existing
-  `~/.azula/bridge.key` on first use (same node id, `bridge.key` left
+  `~/.azula/bridge.key` on first use (same endpoint id, `bridge.key` left
   untouched); read-only from any session-establishment code path (never
   auto-created merely by a session starting — only explicit pairing-side
   flows like `azula invite --bridge`/`start_pairing` may create it).
@@ -231,7 +231,7 @@ reason about:
   session key (the default for `azula mcp`/`azula run`/`azula terminal`),
   deleted on clean process exit.
 - `$TMPDIR/azula/sessions/<name>.json` — a **detached** `azula terminal new`
-  host's runtime state (`{name, pid, node_id, invite_url, started_at}`);
+  host's runtime state (`{name, pid, endpoint_id, invite_url, started_at}`);
   read by `azula terminal list`/`kill`. Distinct from the `.key` file of the
   same name in the same directory (state vs. key material).
 - `azula status [--json]` reads all of the above (plus `devices.json`) and

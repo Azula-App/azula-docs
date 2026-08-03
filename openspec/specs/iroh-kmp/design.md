@@ -31,7 +31,7 @@ iroh-kmp/
 ### API (generated into `app.azula.iroh`)
 
 The **azula transport surface is unchanged** and maps 1:1 onto
-`IrohTransport`/`P2pStream`: `IrohEndpoint.bind(alpns, secretKey?)`, `nodeId()`,
+`IrohTransport`/`P2pStream`: `IrohEndpoint.bind(alpns, secretKey?)`, `id()`,
 `secretKeyBytes()`, `myTicket()`, `connect(ticket, alpn)`,
 `acceptNext(): IncomingConn?`, `shutdown()`, `sign()`;
 `IrohStream.sendBytes/recv/finish` and `rttMs(): ULong?`; the ticket/signature free
@@ -45,16 +45,16 @@ The added core-iroh surface:
   (`Default`/`Disabled`/`Custom(urls)`), `addressLookup`, `bindAddr`,
   `externalAddrs`, `warmUpOnline`. `bind` is a thin delegate with every option
   defaulted to today's behavior.
-- **Dial**: `connectConn(ticket)`, `connectAddr(NodeAddr)`,
-  `connectByNodeId(hex)`; **accept**: `acceptConn(): IrohConnection?` (shares the
+- **Dial**: `connectConn(ticket)`, `connectAddr(EndpointAddr)`,
+  `connectById(hex)`; **accept**: `acceptConn(): IrohConnection?` (shares the
   single-consumer accept queue with `acceptNext` — pick one loop).
 - **`IrohConnection`**: multiple `openBi/acceptBi/openUni/acceptUni` streams,
   datagrams (`sendDatagram`/`trySendDatagram`/`readDatagram`/`maxDatagramSize`),
   `shutdown(code, reason)`/`closed()`/`closeReason()`, and info
-  (`remoteNodeId`/`alpn`/`stableId`/`rttMs`/`paths`/`connType`).
+  (`remoteId`/`alpn`/`stableId`/`rttMs`/`paths`/`connType`).
 - **Streams**: `IrohStream` extended (`readExact`/`readToEnd`/priority/reset/stop/
   ids) plus uni `IrohSendStream`/`IrohRecvStream`.
-- **Status/info**: `nodeAddr()`/`nodeAddrUpdated()`, `directAddresses()`,
+- **Status/info**: `addr()`/`addrUpdated()`, `directAddresses()`,
   `homeRelay()`, `boundSockets()`, `waitOnline()`, `isClosed()`, `setAlpns()`,
   `networkChange()`, `remoteInfo(hex): RemoteInfo?`. Watchers are snapshot +
   `…Updated()` accessors (UniFFI can't ship a `Watcher` across FFI); loop
@@ -201,11 +201,11 @@ proguard/R8 config surface, and the upstream `jna` AAR ships no consumer rules.
 
 - JVM desktop: `./kotlin build -m jvm-app` ✓ (regression — desktop moved onto the
   new binding).
-- Android (arm64 device): `bind` returns, `nodeId` non-null and stable across
+- Android (arm64 device): `bind` returns, `endpointId` non-null and stable across
   launches (key persisted), `myTicket()` returns a full relay ticket,
   `demo=false`. APK contains `libiroh_kmp.so` + `libjnidispatch.so` per ABI.
 - iOS (iPhone 17 Pro simulator, iOS 26): `bind` returns, `myTicket()` completes,
-  `demo=false`, and the node id is **stable across relaunches** (NSUserDefaults
+  `demo=false`, and the endpoint id is **stable across relaunches** (NSUserDefaults
   key persistence in `IrohTransport.ios.kt`). The Rust staticlib links into the
   app via the binding; the Swift `IrohLib` bridge has been **removed**
   (`SwiftTransportBridge.kt` deleted, `iosApp.swift` simplified). Requires a
@@ -228,7 +228,7 @@ packaged: the correct native lib name is `libiroh_ffi.so` (crate
 here 5.15.0, extracted from the JNA Android AAR), and Amper *does* package
 `android-app/jniLibs/<abi>/` via AGP's `mergeJniLibFolders`. The real blocker
 was async dispatch: with the libraries bundled and loading correctly,
-`Endpoint.bind` still never returned on-device (`nodeId` stayed null, UI
+`Endpoint.bind` still never returned on-device (`endpointId` stayed null, UI
 stuck at "connecting…") even though the identical call worked on JVM desktop.
 iroh-ffi exposes its API as async UniFFI methods
 (`#[uniffi::constructor(async_runtime = "tokio")]`), and UniFFI's async
@@ -238,7 +238,7 @@ Fixing this needed a binding whose async calls actually work on Android. That
 is what `iroh-kmp` provides: a JNI-based Gobley binding rather than
 UniFFI-over-JNA, plus the `ndk_context` initialization fix described above
 (§"The two non-obvious fixes"). On a real device, `Endpoint.bind` now returns,
-`nodeId` is set, and `myTicket()` completes with `demo=false`.
+`endpointId` is set, and `myTicket()` completes with `demo=false`.
 
 **iOS: the Swift-bridge approach (OBSOLETE, removed).** Kotlin/Native cannot
 call the `IrohLib` Swift package directly, so iOS originally implemented the

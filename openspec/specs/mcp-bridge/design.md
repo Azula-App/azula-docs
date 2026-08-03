@@ -21,13 +21,13 @@ alike — mints its own ephemeral or named **session** keypair
 short-lived `azd…` certificate (`FLAG_SESSION`) signs the session key with
 the machine's stable identity, now stored at `~/.azula/machine.key`. This is
 what lets two bridge processes run concurrently on one machine without
-colliding: node ids used to be the shared `bridge.key`'s (a hard "one MCP
+colliding: endpoint ids used to be the shared `bridge.key`'s (a hard "one MCP
 server per computer" limit), and are now unique per process.
 
 `~/.azula/bridge.key`, if a machine already had one from before this change,
 is **adopted as-is**: its bytes are copied into `machine.key` on first use
 (`identity::load_machine_secret_if_exists`), `bridge.key` is left in place
-untouched, and the machine's node id — and therefore every pairing the phone
+untouched, and the machine's endpoint id — and therefore every pairing the phone
 already has with it — is unchanged. `start_pairing` (and the startup banner)
 mint invites against the **machine** identity, not the session's own key, so
 a phone pairs with the machine once; every session on it is then
@@ -181,11 +181,11 @@ of a surface.
 3. `parse_ticket` (`link.rs`) accepts four input forms interchangeably:
    `https://azula.app/s/<token>`, `https://azula.app/connect/<token>`,
    `azula://connect?code=<token>`, or a bare token.
-4. On accept, the bridge names the peer with priority (1) node-id match
+4. On accept, the bridge names the peer with priority (1) endpoint-id match
    against a known device/registry ticket (`match_known_device` — recognizes a
    reconnecting device even if it announces a different name), (2) the
-   `Hello{name}` frame it sent, (3) a generated `scan-<8hex>` fallback. Node-id
-   match matters because iroh node ids are stable but a fresh `Hello` name
+   `Hello{name}` frame it sent, (3) a generated `scan-<8hex>` fallback. Endpoint-id
+   match matters because iroh endpoint ids are stable but a fresh `Hello` name
    isn't always trustworthy on reconnect.
 5. Every accepted app connection (not peer bridges) gets a `Hello{name:
    own_name}` frame back so the phone titles the conversation (e.g. "Claude");

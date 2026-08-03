@@ -6,7 +6,7 @@ A valid pasted recovery phrase SHALL commit immediately on restore with no secon
 #### Scenario: Valid restore
 - **WHEN** a valid 24-word phrase is submitted to restore
 - **THEN** the key is persisted, the transport tears down and rebinds in
-  place, and the node id/connect ticket reflect the new identity without
+  place, and the endpoint id/connect ticket reflect the new identity without
   restarting the app
 
 #### Scenario: Invalid restore attempt

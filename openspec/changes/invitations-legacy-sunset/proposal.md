@@ -19,7 +19,7 @@ permanent — it needs to be closed the release after it shipped.
   `azula-site` routes.
 - Add worker-side signature verification on the `/i/` invite page: it
   currently shows a "signed" badge driven only by the flag bit, without
-  verifying the Ed25519 signature (it would need to parse the node id out of
+  verifying the Ed25519 signature (it would need to parse the endpoint id out of
   the postcard ticket in TS). App and CLI already verify; the page is
   advisory only until this lands.
 
@@ -42,7 +42,7 @@ permanent — it needs to be closed the release after it shipped.
 - `azula-cli`: `--allow-legacy` flag on `serve`/`serve-mcp`/`mcp`;
   `azula-cli/src/link.rs` legacy parse branches.
 - `azula-site`: `/s/` and `/connect/` routes; the `/i/` invite page's
-  signature-verification logic (needs node-id extraction from the postcard
+  signature-verification logic (needs endpoint-id extraction from the postcard
   ticket in TS).
 - `openspec/specs/invitations/design.md` ("Transition / compat" and "Future
   work" sections should be updated once this lands — the worker-side

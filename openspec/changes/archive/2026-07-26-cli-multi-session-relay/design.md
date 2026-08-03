@@ -3,11 +3,11 @@
 ## Context
 
 Today `azula-cli` is bridge-shaped: `azula mcp`/`serve-mcp` load one persistent
-key (`~/.azula/bridge.key`), so all processes share one node id — two
+key (`~/.azula/bridge.key`), so all processes share one endpoint id — two
 concurrent bridges collide, which is the "one MCP server per computer" limit.
 The pieces this design composes already exist:
 
-- The app keys conversations by **peer node id** (`terminal/design.md`), so
+- The app keys conversations by **peer endpoint id** (`terminal/design.md`), so
   distinct session keys naturally produce distinct conversations.
 - `certs.rs` / device-linking define the `azd…` certificate format (root signs
   device certs, role flags, expiry) and `accept_gate::CertGate` admits peers
@@ -59,7 +59,7 @@ surface is CLI verbs + JSONL events.
 Each azula **machine** has a stable identity key. `~/.azula/bridge.key` is
 adopted as-is and renamed `machine.key` (read `bridge.key` as fallback, write
 `machine.key`) — existing phone pairings keep working because the machine's
-node id is unchanged, and the phone already knows it as a contact.
+endpoint id is unchanged, and the phone already knows it as a contact.
 
 Each azula **process** (an `azula mcp` server, an `azula run` handoff, a
 scripted `--session`) holds a session keypair whose `azd…` certificate is
@@ -297,7 +297,7 @@ at implementation time (fallbacks: scoped npm name, `azula-cli` on crates).
 
 1. Ship the CLI restructure with old commands as aliases; `bridge.key` is
    read as the machine key and rewritten as `machine.key` on first run.
-   Existing `devices.json` pairings keep working (node id unchanged).
+   Existing `devices.json` pairings keep working (endpoint id unchanged).
 2. App update ships the session-cert accept path + new fold kinds first
    (passthrough makes ordering safe); CLI features that need the app
    (auto-accept, relay A2UI replay) degrade to today's behavior against an

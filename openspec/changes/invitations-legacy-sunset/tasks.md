@@ -21,7 +21,7 @@
 
 ## 4. Worker-side signature verification
 
-- [ ] 4.1 Parse the node id out of the postcard ticket in TS (`azula-site`).
+- [ ] 4.1 Parse the endpoint id out of the postcard ticket in TS (`azula-site`).
 - [ ] 4.2 Verify the Ed25519 signature on the `/i/` invite page instead of
       trusting the flag bit for the "signed" badge.
 - [ ] 4.3 Add test vectors (reuse the shared V1/V2 vectors in

@@ -2,7 +2,7 @@
 
 ## 1. Session identity (azula-cli)
 
-- [x] 1.1 Machine key: `identity.rs` gains `machine` identity that adopts `bridge.key` (read fallback, rewrite as `machine.key`); node id unchanged for existing pairings
+- [x] 1.1 Machine key: `identity.rs` gains `machine` identity that adopts `bridge.key` (read fallback, rewrite as `machine.key`); endpoint id unchanged for existing pairings
 - [x] 1.2 Session certs: `certs.rs` gains `FLAG_SESSION`; mint/verify session certs (machine root → session key, default 7d expiry); self-certified form (`device_pk == root_pk`) for headless
 - [x] 1.3 Session key management: `--session NAME`/`AZULA_SESSION` → `~/.azula/sessions/<name>.key`; ephemeral per-process keys under `$TMPDIR/azula/sessions/` cleaned on exit; default `cli` session for one-shot verbs, fresh ephemeral for `mcp`/`run`/`terminal`
 - [x] 1.4 Endpoint setup: every entry point binds a session key and sends `Hello{cert}`; `start_pairing`/startup banner mint machine-identity invites; headless (no machine key) path prints self-certified invite URL + QR and waits

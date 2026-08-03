@@ -65,10 +65,10 @@ and the invite SHALL be dropped from future `Hello` frames.
 - **THEN** the redeemer SHALL include the invite again in the new `Hello`
 
 ### Requirement: Known Peers Bypass the Invite Gate
-A connecting peer SHALL be allowed to connect without invite verification if it is already known: its node id matches an enabled conversation, a saved peer entry, or the accepted-contacts list (CLI: a registered device); or it presented a valid device certificate whose root public key is in the accepted-contacts list. A revoked device's certificate SHALL NOT satisfy the root-match path, and a certificate that fails verification SHALL NOT contribute to being known.
+A connecting peer SHALL be allowed to connect without invite verification if it is already known: its endpoint id matches an enabled conversation, a saved peer entry, or the accepted-contacts list (CLI: a registered device); or it presented a valid device certificate whose root public key is in the accepted-contacts list. A revoked device's certificate SHALL NOT satisfy the root-match path, and a certificate that fails verification SHALL NOT contribute to being known.
 
 #### Scenario: A previously accepted peer reconnects
-- **WHEN** a peer whose node id is in the acceptor's contacts reconnects
+- **WHEN** a peer whose endpoint id is in the acceptor's contacts reconnects
 - **THEN** the connection SHALL be accepted without requiring an invite
 
 #### Scenario: A contact's new device is known by root
@@ -83,17 +83,17 @@ A connecting peer SHALL be allowed to connect without invite verification if it 
 For a stranger, the acceptor SHALL read the first frame within a
 15-second timeout and require a present `Hello.invite`. The invite SHALL
 be treated as valid only if all of the following hold: the payload
-decodes and `version == 1`; the ticket's embedded node id equals the
-acceptor's own node id; `invite_id` exists in the acceptor's
+decodes and `version == 1`; the ticket's embedded endpoint id equals the
+acceptor's own endpoint id; `invite_id` exists in the acceptor's
 issued-invite store; `expires_at` is `0` or the current time is before
 `expires_at`; if flags bit 0 is set, the signature verifies against the
-acceptor's node key; and if flags bit 1 is set, the invite has not
+acceptor's endpoint key; and if flags bit 1 is set, the invite has not
 already been consumed. Any failure, or a missing invite where one is
 required, SHALL cause the acceptor to close the connection.
 
-#### Scenario: Invite addressed to a different node
-- **WHEN** the node id embedded in a presented invite's ticket does not
-  match the acceptor's own node id
+#### Scenario: Invite addressed to a different endpoint
+- **WHEN** the endpoint id embedded in a presented invite's ticket does not
+  match the acceptor's own endpoint id
 - **THEN** the acceptor SHALL treat the invite as invalid and close the
   connection
 
@@ -109,7 +109,7 @@ required, SHALL cause the acceptor to close the connection.
   SHALL be rejected
 
 ### Requirement: Pending Requests and Consumption
-On the app, a stranger presenting a valid invite SHALL become a persisted pending request rather than an active conversation, until the user explicitly accepts or declines. Accepting SHALL add the peer to contacts — recording the root public key as the contact identifier when the stranger presented a valid device certificate, and the node id otherwise — and, if the invite is single-use, mark it consumed. Declining SHALL close the connection and discard the pending request. On the CLI, verification success SHALL constitute acceptance and SHALL register the device (with its root key when certified) immediately, with no pending step.
+On the app, a stranger presenting a valid invite SHALL become a persisted pending request rather than an active conversation, until the user explicitly accepts or declines. Accepting SHALL add the peer to contacts — recording the root public key as the contact identifier when the stranger presented a valid device certificate, and the endpoint id otherwise — and, if the invite is single-use, mark it consumed. Declining SHALL close the connection and discard the pending request. On the CLI, verification success SHALL constitute acceptance and SHALL register the device (with its root key when certified) immediately, with no pending step.
 
 #### Scenario: User declines a pending stranger
 - **WHEN** the user declines a pending request from a stranger who
@@ -177,7 +177,7 @@ The `Hello` frame SHALL gain an optional `cert` field carrying the sender's enco
 
 #### Scenario: Valid certificate identifies the root
 - **WHEN** a `Hello` arrives with a `cert` that verifies
-- **THEN** the receiver associates the connection with the certificate's root public key in addition to the connection's node id
+- **THEN** the receiver associates the connection with the certificate's root public key in addition to the connection's endpoint id
 
 #### Scenario: Invalid certificate is ignored, not fatal
 - **WHEN** a `Hello` arrives with a `cert` whose signature does not verify
@@ -185,21 +185,21 @@ The `Hello` frame SHALL gain an optional `cert` field carrying the sender's enco
 
 #### Scenario: Old peer omits the cert field
 - **WHEN** a `Hello` frame from an older peer has no `cert` field
-- **THEN** the receiving peer processes the frame without error and treats the sender as a single-device, node-id-keyed peer
+- **THEN** the receiving peer processes the frame without error and treats the sender as a single-device, endpoint-id-keyed peer
 
 ### Requirement: Contacts Pin the Root Identity
-Accepting a peer that presented a valid device certificate SHALL record the certificate's root public key as the contact identifier, alongside the node id of the accepted device. The contact's conversation SHALL be keyed by root public key, so messages from any certified device of that identity land in one conversation. Contacts without certificates SHALL remain keyed by node id with unchanged behavior.
+Accepting a peer that presented a valid device certificate SHALL record the certificate's root public key as the contact identifier, alongside the endpoint id of the accepted device. The contact's conversation SHALL be keyed by root public key, so messages from any certified device of that identity land in one conversation. Contacts without certificates SHALL remain keyed by endpoint id with unchanged behavior.
 
 #### Scenario: Second device lands in the same conversation
-- **WHEN** a contact's laptop (a different node id, same root, valid certificate) dials after their phone was accepted
+- **WHEN** a contact's laptop (a different endpoint id, same root, valid certificate) dials after their phone was accepted
 - **THEN** its messages appear in the existing conversation for that contact rather than creating a new one
 
-#### Scenario: Legacy contact stays node-id keyed
+#### Scenario: Legacy contact stays endpoint-id keyed
 - **WHEN** a peer that has never presented a certificate connects
-- **THEN** its conversation and contact entry remain keyed by node id exactly as before this change
+- **THEN** its conversation and contact entry remain keyed by endpoint id exactly as before this change
 
 ### Requirement: Session Certificates Admit Strangers Without an Invite
-The accept gate SHALL admit a connecting stranger with no invite and no pending prompt when its `Hello.cert` is a valid session certificate chaining to an already-paired machine: the cert self-verifies (signature by its `root_pk`, unexpired), carries the session role flag, its `root_pk` equals a known machine contact's key, and its `device_pk` equals the transport peer node id. All five checks SHALL be required; a failure of any SHALL fall through to the ordinary invite verification path, never to an error that blocks the invite path.
+The accept gate SHALL admit a connecting stranger with no invite and no pending prompt when its `Hello.cert` is a valid session certificate chaining to an already-paired machine: the cert self-verifies (signature by its `root_pk`, unexpired), carries the session role flag, its `root_pk` equals a known machine contact's key, and its `device_pk` equals the transport peer endpoint id. All five checks SHALL be required; a failure of any SHALL fall through to the ordinary invite verification path, never to an error that blocks the invite path.
 
 #### Scenario: All checks pass
 - **WHEN** a stranger's `Hello.cert` passes signature, expiry, session-flag, known-machine, and transport-binding checks

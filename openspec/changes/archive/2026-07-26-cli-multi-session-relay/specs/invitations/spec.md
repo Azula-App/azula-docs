@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Session Certificates Admit Strangers Without an Invite
-The accept gate SHALL admit a connecting stranger with no invite and no pending prompt when its `Hello.cert` is a valid session certificate chaining to an already-paired machine: the cert self-verifies (signature by its `root_pk`, unexpired), carries the session role flag, its `root_pk` equals a known machine contact's key, and its `device_pk` equals the transport peer node id. All five checks SHALL be required; a failure of any SHALL fall through to the ordinary invite verification path, never to an error that blocks the invite path.
+The accept gate SHALL admit a connecting stranger with no invite and no pending prompt when its `Hello.cert` is a valid session certificate chaining to an already-paired machine: the cert self-verifies (signature by its `root_pk`, unexpired), carries the session role flag, its `root_pk` equals a known machine contact's key, and its `device_pk` equals the transport peer endpoint id. All five checks SHALL be required; a failure of any SHALL fall through to the ordinary invite verification path, never to an error that blocks the invite path.
 
 #### Scenario: All checks pass
 - **WHEN** a stranger's `Hello.cert` passes signature, expiry, session-flag, known-machine, and transport-binding checks

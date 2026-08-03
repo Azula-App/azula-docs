@@ -4,7 +4,7 @@
 
 The current CLI is bridge-shaped, not user-shaped: one persistent `bridge.key`
 identity per machine means exactly one MCP server can talk to the phone at a
-time (two processes sharing a node id collide; HTTP mode additionally holds one
+time (two processes sharing a endpoint id collide; HTTP mode additionally holds one
 port), so concurrent Claude Code sessions, CI jobs, and scripts cannot each
 hold their own conversation. There is no first-class way to hand a failing
 terminal (local or CI) to the phone, no way to reach the phone from an
@@ -18,7 +18,7 @@ is not published anywhere — every machine builds it from source.
   machine's stable azula identity, reusing the `azd…` certificate format. The
   phone pairs with the machine once and then auto-accepts any session whose
   cert chains to it — each session is naturally its own conversation (the app
-  already keys conversations by node id). Headless/ephemeral environments
+  already keys conversations by endpoint id). Headless/ephemeral environments
   (Claude Code web containers, CI runners) carry no standing credential:
   each session prints a pairing URL/QR and the user approves it from the
   phone ("scan per session").

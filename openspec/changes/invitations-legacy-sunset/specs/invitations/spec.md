@@ -39,7 +39,7 @@ SHALL be accepted.
 
 ### Requirement: Invite Page Signature Verification
 The `/i/` invite page on `azula-site` SHALL verify the Ed25519 signature
-of a signed invite payload (parsing the node id out of the
+of a signed invite payload (parsing the endpoint id out of the
 postcard-encoded ticket) before displaying a "signed" badge, rather than
 trusting the payload's signed-flag bit alone.
 
@@ -47,11 +47,11 @@ trusting the payload's signed-flag bit alone.
 - **WHEN** a user opens an `/i/<encoded>` link whose payload has the
   signed flag set
 - **THEN** the page SHALL decode the embedded ticket to recover the
-  issuer's node id, verify the Ed25519 signature against it, and show
+  issuer's endpoint id, verify the Ed25519 signature against it, and show
   the "signed" badge only if verification succeeds
 
 #### Scenario: A signed invite with a tampered signature is viewed
 - **WHEN** a user opens an `/i/<encoded>` link whose payload has the
   signed flag set but the signature does not verify against the embedded
-  ticket's node id
+  ticket's endpoint id
 - **THEN** the page SHALL NOT show the "signed" badge

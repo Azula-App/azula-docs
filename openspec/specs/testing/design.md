@@ -85,7 +85,7 @@ Setting `AZULA_DATA_DIR=<scratch-dir>` before launching `jvm-app` redirects
   `~/.azula/…`)
 - `<scratch-dir>/Downloads/Azula/` — exported media (was `~/Downloads/Azula/`)
 - `<scratch-dir>/.azula/endpoint.key`, `<scratch-dir>/.azula/root.key` — the
-  node secret and root secret, as **plain files**, even on macOS
+  endpoint secret and root secret, as **plain files**, even on macOS
 
 That last point is deliberate, not an oversight: redirecting only the files
 would be a trap, since the app would still find (and could silently mutate)
@@ -124,7 +124,7 @@ AZULA_DATA_DIR=/tmp/azula-instance-a ./kotlin run -m jvm-app &
 AZULA_DATA_DIR=/tmp/azula-instance-b ./kotlin run -m jvm-app &
 ```
 
-Each instance mints/keeps its own node identity under its own scratch dir and
+Each instance mints/keeps its own endpoint identity under its own scratch dir and
 neither can read, write, or collide with the other's — or with a developer's
 real, unset-override `~/.azula` install.
 

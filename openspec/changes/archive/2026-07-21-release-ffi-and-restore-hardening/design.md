@@ -63,7 +63,7 @@ native symbol names. Verified this stays targeted: the app's own
 
 **Restore reports success when only the re-bind fails.** `importSecretKey`
 persists the key before re-binding, so the identity has already changed; the
-node comes up on the next bind. Returning failure would surface "that isn't a
+endpoint comes up on the next bind. Returning failure would surface "that isn't a
 valid recovery phrase" for a phrase that decoded and committed — actively
 misleading. Degrading to `offline` matches what a failed initial bind already
 does. `CancellationException` is rethrown so structured concurrency still works.

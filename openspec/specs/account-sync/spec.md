@@ -19,7 +19,7 @@ Each enrolled device SHALL own exactly one append-only log of which it is the si
 - **THEN** each appends to its own log and no conflict or merge arises anywhere
 
 ### Requirement: Event Kinds
-Log entry kinds SHALL be: `0x01 message_out` (body: `{conversation, text, id?}`), `0x02 message_in` (body: `{conversation, from_device_pk, text, id?}`), `0x03 read_marker` (body: `{conversation, up_to_lamport}`), `0x04 contact_add` (body: `{root_pk | node_id, name?}`), `0x05 contact_remove` (body: same key as add), `0x06 device_add` (body: `{cert}`), `0x07 device_revoke` (body: `{revocation}`), `0x08 profile_update` (body: `{name?, description?}`), `0x09 agent_in` (body: `{conversation, text, id?, from_name?}`), `0x0A agent_out` (body: `{conversation, text, id?}`). For agent kinds, `conversation` SHALL be the session's public key in hex; agent kinds SHALL fold into that session's conversation history with the same `(conversation, id)` dedup rule as peer chat, and a device receiving a relayed `agent_in` for a new conversation SHALL surface it with its normal new-message notification path. A2UI surface state SHALL NOT be written to the log in any kind. `conversation` for peer kinds SHALL be the contact's root public key in hex, or node id in hex for legacy contacts. Unknown kinds SHALL be stored, forwarded, and ignored at fold time so newer devices can extend the log without breaking older siblings.
+Log entry kinds SHALL be: `0x01 message_out` (body: `{conversation, text, id?}`), `0x02 message_in` (body: `{conversation, from_device_pk, text, id?}`), `0x03 read_marker` (body: `{conversation, up_to_lamport}`), `0x04 contact_add` (body: `{root_pk | endpoint_id, name?}`), `0x05 contact_remove` (body: same key as add), `0x06 device_add` (body: `{cert}`), `0x07 device_revoke` (body: `{revocation}`), `0x08 profile_update` (body: `{name?, description?}`), `0x09 agent_in` (body: `{conversation, text, id?, from_name?}`), `0x0A agent_out` (body: `{conversation, text, id?}`). For agent kinds, `conversation` SHALL be the session's public key in hex; agent kinds SHALL fold into that session's conversation history with the same `(conversation, id)` dedup rule as peer chat, and a device receiving a relayed `agent_in` for a new conversation SHALL surface it with its normal new-message notification path. A2UI surface state SHALL NOT be written to the log in any kind. `conversation` for peer kinds SHALL be the contact's root public key in hex, or endpoint id in hex for legacy contacts. Unknown kinds SHALL be stored, forwarded, and ignored at fold time so newer devices can extend the log without breaking older siblings.
 
 #### Scenario: Unknown kind passes through
 - **WHEN** a device receives an entry with an unrecognized kind byte from a newer sibling
@@ -34,7 +34,7 @@ Log entry kinds SHALL be: `0x01 message_out` (body: `{conversation, text, id?}`)
 - **THEN** the fold shows the message exactly once
 
 ### Requirement: Sync Runs Only Between Same-Root Certified Devices
-The `azula/sync/0` ALPN SHALL exchange newline-delimited JSON frames and SHALL begin with mutual `SyncHello{cert}`; each side SHALL verify the other's certificate chains to its own root key and that the transport node id matches the certificate's device key, closing the connection otherwise. Both sides then send `SyncVector{vector}` — a map of device public key hex to highest contiguous `seq` held — then stream `SyncEntries{entries}` (base64 entry payloads, at most 64 per frame, per-device in ascending `seq` order) for entries the other side lacks, then `SyncAck{vector}`. While the connection stays open, each side SHALL push newly appended entries immediately.
+The `azula/sync/0` ALPN SHALL exchange newline-delimited JSON frames and SHALL begin with mutual `SyncHello{cert}`; each side SHALL verify the other's certificate chains to its own root key and that the transport endpoint id matches the certificate's device key, closing the connection otherwise. Both sides then send `SyncVector{vector}` — a map of device public key hex to highest contiguous `seq` held — then stream `SyncEntries{entries}` (base64 entry payloads, at most 64 per frame, per-device in ascending `seq` order) for entries the other side lacks, then `SyncAck{vector}`. While the connection stays open, each side SHALL push newly appended entries immediately.
 
 #### Scenario: Foreign device is refused
 - **WHEN** a `SyncHello` presents a certificate for a different root key
@@ -85,7 +85,7 @@ A newly enrolled device SHALL send an empty sync vector and receive the identity
 - **THEN** it receives the full history from the mailbox and converges without any interactive sibling online
 
 ### Requirement: Chat Message Ids Deduplicate Retries
-The `Chat` frame SHALL gain an optional `id` field (16 random bytes, lowercase hex) set by senders on new messages. Receivers folding `message_in` entries SHALL deduplicate by `(sender root or node id, id)` so a retry delivered to a second device after an ambiguous failure appears once. Frames without `id` SHALL never be deduplicated.
+The `Chat` frame SHALL gain an optional `id` field (16 random bytes, lowercase hex) set by senders on new messages. Receivers folding `message_in` entries SHALL deduplicate by `(sender root or endpoint id, id)` so a retry delivered to a second device after an ambiguous failure appears once. Frames without `id` SHALL never be deduplicated.
 
 #### Scenario: Ambiguous failure then retry to another device
 - **WHEN** a sender times out delivering to one device and retries the same `id` against a sibling, but the first delivery had actually succeeded
@@ -99,7 +99,7 @@ Marking a conversation read SHALL append a `read_marker` entry; a conversation's
 - **THEN** sibling devices show the conversation as read up to that point
 
 ### Requirement: Legacy Peers Are Unaffected
-Sync SHALL be internal to an identity: peers without certificates SHALL see only the existing chat/invite/media protocols, node-id-keyed conversations, and no sync traffic. An identity's own devices SHALL still log and sync `message_in`/`message_out` for conversations with legacy peers, so multi-device history works even when the peer runs an old build.
+Sync SHALL be internal to an identity: peers without certificates SHALL see only the existing chat/invite/media protocols, endpoint-id-keyed conversations, and no sync traffic. An identity's own devices SHALL still log and sync `message_in`/`message_out` for conversations with legacy peers, so multi-device history works even when the peer runs an old build.
 
 #### Scenario: Old peer, synced history
 - **WHEN** a legacy single-device peer chats with a multi-device identity

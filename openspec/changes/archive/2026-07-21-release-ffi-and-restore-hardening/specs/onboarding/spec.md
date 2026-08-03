@@ -12,4 +12,4 @@ The app's start sequence SHALL run at most once per process, binding at most one
 - **WHEN** Android starts the state from the `Application` and again from the
   setup gate
 - **THEN** exactly one endpoint SHALL exist, with no orphaned endpoint sharing
-  the same node id and no orphaned inbound accept loop
+  the same endpoint id and no orphaned inbound accept loop

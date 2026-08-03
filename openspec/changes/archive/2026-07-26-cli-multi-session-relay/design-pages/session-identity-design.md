@@ -45,7 +45,7 @@ per-session keys existed, `~/.azula/bridge.key` already holds that identity
 tries `machine.key` first, and only if that's absent does it read
 `bridge.key`, copy its raw 32 bytes to a freshly written `machine.key`, and
 leave `bridge.key` untouched on disk (nothing deletes it — anything still
-reading it directly, if it exists, keeps working too). The node id — an
+reading it directly, if it exists, keeps working too). The endpoint id — an
 Ed25519 public key derived deterministically from the secret bytes — is
 therefore byte-identical before and after adoption, so every pairing the
 phone already has with this machine survives with zero re-pairing.
@@ -75,12 +75,12 @@ below). `core::establish` reads it read-only:
 ```rust
 let machine_secret = identity::load_machine_secret_if_exists();
 let session_cert = match &machine_secret {
-    Some(m) => certs::mint_session_cert(m, my_node_id, certs::DEFAULT_SESSION_EXPIRY),
+    Some(m) => certs::mint_session_cert(m, my_endpoint_id, certs::DEFAULT_SESSION_EXPIRY),
     None => certs::mint_self_certified_session(&session.secret, certs::DEFAULT_SESSION_EXPIRY),
 }.encode();
 ```
 
-Tests: `identity.rs`'s `bridge_key_adopted_as_machine_key_preserves_node_id`
+Tests: `identity.rs`'s `bridge_key_adopted_as_machine_key_preserves_endpoint_id`
 (byte-identical secret + public key before/after adoption, `bridge.key` left
 untouched), `no_machine_or_bridge_key_session_path_creates_nothing` (the
 read-only accessor writes nothing when neither file exists),
@@ -154,8 +154,8 @@ explicit name (--session) or AZULA_SESSION (non-empty)?
   `restrict_permissions`). This is D2's mechanism for a one-shot script
   invoked dozens of times to land in the *same* phone conversation every
   time: `--session blackjack` (or `AZULA_SESSION=blackjack`) always resolves
-  to the same key, hence the same node id, hence the same conversation (the
-  app keys conversations by peer node id).
+  to the same key, hence the same endpoint id, hence the same conversation (the
+  app keys conversations by peer endpoint id).
 - **Ephemeral** (`SessionKey::ephemeral`) — a fresh `SecretKey::generate()`,
   display name `mcp-<4 lowercase hex>` (drawn from a freshly generated key's
   own CSPRNG bytes rather than pulling in a `rand` dependency — the same
@@ -246,9 +246,9 @@ Conversations" requirement: five checks, all required —
 2. It carries the session role flag (`FLAG_SESSION`, `0x04` — matching the
    Rust `certs::FLAG_SESSION` constant byte-for-byte, since a cert crosses
    the wire as opaque `azd…` bytes both languages decode independently).
-3. `root_pk` equals the root/node key of an **already-paired machine
+3. `root_pk` equals the root/endpoint key of an **already-paired machine
    contact**.
-4. `device_pk` equals the connection's transport peer node id.
+4. `device_pk` equals the connection's transport peer endpoint id.
 5. (implicit in #1) not revoked.
 
 A cert failing any check falls through to the ordinary invite gate — never a

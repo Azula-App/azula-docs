@@ -240,7 +240,7 @@ conversation. Right after a connection is admitted (post-invite-gate, for known
 and invite-verified peers alike) and before any `Frame::Term` output, the
 server writes one `Frame::Profile { name, description }` on the send half
 (`term.rs`) — **per connection** (only the first bi stream, since the app keys a
-conversation by peer node id, so later streams reuse the same row).
+conversation by peer endpoint id, so later streams reuse the same row).
 Defaults: `name` = the machine hostname (`gethostname`, trailing `.local`
 stripped, `"azula"` if empty); `description` = the shell's launch working
 directory (`current_dir()` at PTY spawn). Both are overridable with `azula serve
@@ -429,7 +429,7 @@ Wire (newline-JSON frames, mirrored in `proto.rs`/`Protocol.kt`):
   256 KiB output ring buffer, newline-boundary eviction), split into
   `session_core` (one task per PTY, feeds the ring + the current attachment,
   survives stream loss) and per-stream attachments. Re-attach: owner-bound
-  by default (only the creating peer's node id may resume; anyone else
+  by default (only the creating peer's endpoint id may resume; anyone else
   silently gets a fresh session — see "Invite-authorized attach" below for
   the one relaxation cli-multi-session-relay adds), replies `resumed: true`,
   replays the ring as ordinary `term` frames, then goes live; a `resize`
@@ -491,7 +491,7 @@ process's own first real output. Two CLI features build on this:
   *identity* (not the same live PTY — the shell itself is gone, but the
   phone conversation and machine-cert chain are unchanged). `list`/`kill`
   read/signal a JSON runtime state file
-  (`$TMPDIR/azula/sessions/<name>.json`: `{name, pid, node_id, invite_url,
+  (`$TMPDIR/azula/sessions/<name>.json`: `{name, pid, endpoint_id, invite_url,
   started_at}`) distinct from the session-key files of the same name in
   `~/.azula/sessions/`.
 
@@ -510,7 +510,7 @@ host has a different shape).
 ## Invite-authorized attach
 
 A host-created session has no owner at the moment it's spawned (nothing has
-connected yet), so the pre-existing strict "only the creating peer's node id
+connected yet), so the pre-existing strict "only the creating peer's endpoint id
 may resume" rule can't apply to it as written — it would mean *nobody* could
 ever attach. `find_owned_session(id, requester)` (`term.rs`) is the
 generalized authorization check both paths now go through:
@@ -519,7 +519,7 @@ generalized authorization check both paths now go through:
 2. The session is `invite_gated` (true for every host-created session, false
    for the ordinary client-created path — unchanged there) **and**
    `requester` is a peer this same process has itself admitted via a
-   verified invite (`registry::find_by_node_id(&requester).is_some()`,
+   verified invite (`registry::find_by_endpoint_id(&requester).is_some()`,
    which — per `accept_gate::gate_stranger`'s contract — is only ever true
    for the *verified-invite* admission path, never `--allow-legacy`, never
    an already-known peer re-checked) → admit, and if the session had no

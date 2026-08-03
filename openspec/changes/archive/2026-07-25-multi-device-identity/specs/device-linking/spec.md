@@ -14,10 +14,10 @@ A device certificate SHALL be a fixed big-endian binary payload: a 1-byte versio
 - **THEN** decoding SHALL reject the certificate rather than partially processing it
 
 ### Requirement: Certificate Verification Is Self-Contained
-Verifying a certificate SHALL require no external lookup: check `version == 1`, verify the signature against the embedded root public key, and check `expires_at` is `0` or in the future. Verifiers SHALL additionally reject any certificate whose device key appears in a verified revocation statement they hold. A certificate is an association claim only — it SHALL confer nothing unless the connection's transport node id equals the certificate's device public key.
+Verifying a certificate SHALL require no external lookup: check `version == 1`, verify the signature against the embedded root public key, and check `expires_at` is `0` or in the future. Verifiers SHALL additionally reject any certificate whose device key appears in a verified revocation statement they hold. A certificate is an association claim only — it SHALL confer nothing unless the connection's transport endpoint id equals the certificate's device public key.
 
 #### Scenario: Certificate presented over the wrong connection
-- **WHEN** a valid certificate arrives on a connection whose transport node id differs from the certificate's device public key
+- **WHEN** a valid certificate arrives on a connection whose transport endpoint id differs from the certificate's device public key
 - **THEN** the certificate SHALL confer no identity association on that connection
 
 #### Scenario: Expired certificate
@@ -36,7 +36,7 @@ A revocation statement SHALL be a fixed big-endian payload — version (`0x01`, 
 - **THEN** it receives the revocation statement and thereafter rejects the revoked device
 
 ### Requirement: QR-Link Enrollment Grants a Certificate Without Root Authority
-Linking a new device via QR SHALL work as follows: the new device generates its node keypair and displays a link payload — version (`0x01`, 1 byte), device public key (32 bytes), `name_len` (1 byte) plus UTF-8 name, `ticket_len` (2 bytes) plus an opaque connect ticket — encoded as `"azl"` plus unpadded lowercase base32, as a QR and copyable string. A root-holding device scans it and dials the ticket on the `azula/link/0` ALPN, exchanging newline-delimited JSON frames `LinkHello{device_pk, name, roles}` then `LinkGrant{cert, bundle}` or `LinkReject{reason}`. Before granting, both devices SHALL display the same four verification words — the first 44 bits of `SHA-256(lower_pk || higher_pk)` (the two device public keys sorted bytewise ascending) read as four 11-bit BIP-39 wordlist indices — and the root-holding device SHALL require explicit user confirmation naming the device and any requested roles. The grant SHALL deliver the new certificate and an identity bundle (root public key, all known certificates, revocation set, contacts snapshot, and a mailbox hint when one exists). A QR-linked device SHALL NOT receive the root secret.
+Linking a new device via QR SHALL work as follows: the new device generates its endpoint keypair and displays a link payload — version (`0x01`, 1 byte), device public key (32 bytes), `name_len` (1 byte) plus UTF-8 name, `ticket_len` (2 bytes) plus an opaque connect ticket — encoded as `"azl"` plus unpadded lowercase base32, as a QR and copyable string. A root-holding device scans it and dials the ticket on the `azula/link/0` ALPN, exchanging newline-delimited JSON frames `LinkHello{device_pk, name, roles}` then `LinkGrant{cert, bundle}` or `LinkReject{reason}`. Before granting, both devices SHALL display the same four verification words — the first 44 bits of `SHA-256(lower_pk || higher_pk)` (the two device public keys sorted bytewise ascending) read as four 11-bit BIP-39 wordlist indices — and the root-holding device SHALL require explicit user confirmation naming the device and any requested roles. The grant SHALL deliver the new certificate and an identity bundle (root public key, all known certificates, revocation set, contacts snapshot, and a mailbox hint when one exists). A QR-linked device SHALL NOT receive the root secret.
 
 #### Scenario: Verification words match on both screens
 - **WHEN** the link connection is established
@@ -58,7 +58,7 @@ A device enrolled by recovery phrase SHALL hold the root secret and full root au
 - **THEN** it can subsequently act as the root-holding side of a QR-link enrollment
 
 ### Requirement: CLI Device Enrollment
-The azula CLI SHALL provide `azula link [--name <name>] [--mailbox]`, which generates (or reuses) a persisted node key, prints the `azl…` link payload as a terminal QR and string, prints the four verification words when the link connection arrives, and persists the granted certificate and identity bundle. `--mailbox` SHALL request the mailbox role, which the root-holding device's confirmation UI SHALL display before granting. The linked CLI device SHALL hold no root secret and SHALL keep its identity separate from the CLI's other long-lived command identities.
+The azula CLI SHALL provide `azula link [--name <name>] [--mailbox]`, which generates (or reuses) a persisted endpoint key, prints the `azl…` link payload as a terminal QR and string, prints the four verification words when the link connection arrives, and persists the granted certificate and identity bundle. `--mailbox` SHALL request the mailbox role, which the root-holding device's confirmation UI SHALL display before granting. The linked CLI device SHALL hold no root secret and SHALL keep its identity separate from the CLI's other long-lived command identities.
 
 #### Scenario: Linking the CLI as a mailbox
 - **WHEN** `azula link --mailbox` is run and the app-side user confirms a certificate that carries the mailbox role bit
@@ -69,7 +69,7 @@ The azula CLI SHALL provide `azula link [--name <name>] [--mailbox]`, which gene
 - **THEN** the CLI receives `LinkReject` and persists no certificate
 
 ### Requirement: Device Registry Persistence
-Each enrolled device SHALL persist: the root public key, the root secret iff phrase-enrolled, its own node key and certificate, all sibling certificates and revocation statements it has learned, and the mailbox hint. For each contact, devices SHALL persist the pinned root public key (or node id for legacy contacts) plus the last-seen certificate per contact device and any learned revocations for that root. All of it SHALL be reconstructable from the identity bundle plus log sync — losing this cache SHALL degrade to re-learning, never to identity loss.
+Each enrolled device SHALL persist: the root public key, the root secret iff phrase-enrolled, its own endpoint key and certificate, all sibling certificates and revocation statements it has learned, and the mailbox hint. For each contact, devices SHALL persist the pinned root public key (or endpoint id for legacy contacts) plus the last-seen certificate per contact device and any learned revocations for that root. All of it SHALL be reconstructable from the identity bundle plus log sync — losing this cache SHALL degrade to re-learning, never to identity loss.
 
 #### Scenario: Registry cache loss is recoverable
 - **WHEN** a device loses its registry cache but keeps its keys

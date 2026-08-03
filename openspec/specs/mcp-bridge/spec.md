@@ -106,7 +106,7 @@ running bridge without calling any MCP tool.
 Ticket parsing SHALL accept four interchangeable input forms: the `/s/`
 web URL, the `/connect/` web URL, the `azula://connect?code=` deep link, or a
 bare token. On accepting a connection, the bridge SHALL name the peer using,
-in priority order: (1) a node-id match against a known device in the
+in priority order: (1) a endpoint-id match against a known device in the
 registry, (2) the `Hello{name}` frame the peer sent, (3) a generated
 fallback name. Every accepted app connection (not peer-bridge connection)
 SHALL receive a `Hello{name: own_name}` frame in reply.
@@ -114,7 +114,7 @@ SHALL receive a `Hello{name: own_name}` frame in reply.
 #### Scenario: Reconnecting device with a stale Hello name
 - **WHEN** a device with a known registry ticket reconnects but announces a
   different `Hello` name
-- **THEN** the bridge names it via the node-id match against the registry,
+- **THEN** the bridge names it via the endpoint-id match against the registry,
   not the freshly announced (possibly stale) `Hello` name
 
 #### Scenario: App connection receives a naming reply

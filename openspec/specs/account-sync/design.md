@@ -41,7 +41,7 @@ base32" below).
 | `0x01` | `message_out` | `{conversation, text, id?}` |
 | `0x02` | `message_in` | `{conversation, from_device_pk, text, id?}` |
 | `0x03` | `read_marker` | `{conversation, up_to_lamport}` |
-| `0x04` | `contact_add` | `{root_pk \| node_id, name?}` |
+| `0x04` | `contact_add` | `{root_pk \| endpoint_id, name?}` |
 | `0x05` | `contact_remove` | same body shape as `contact_add` |
 | `0x06` | `device_add` | `{cert}` — an `"azd…"`-encoded certificate |
 | `0x07` | `device_revoke` | `{revocation}` — an `"azr…"`-encoded revocation |
@@ -50,11 +50,11 @@ base32" below).
 | `0x0A` | `agent_out` | `{conversation, text, id?}` — the identity's reply to an agent conversation, keyed the same way |
 
 `conversation` is the contact's root public key in hex for a certified
-contact, or its node id in hex for a legacy one, for every kind **except**
+contact, or its endpoint id in hex for a legacy one, for every kind **except**
 `agent_in`/`agent_out` — for those two, `conversation` is the **session's own
 public key in hex** (`certs::FLAG_SESSION`'s `device_pk`; see
 [`session-identity/design.md`](../../changes/cli-multi-session-relay/design-pages/session-identity-design.md)),
-never a contact root or node id, since a session isn't a contact of the
+never a contact root or endpoint id, since a session isn't a contact of the
 identity at all — it's an ephemeral peer the relay admitted by a
 machine-chained cert. This is the same string already used as the
 peer-conversation key elsewhere in the app for the peer kinds, so root-pk
@@ -242,7 +242,7 @@ changed, only the name a human types). `mailbox_role.rs` (module/internal
 names intentionally kept as-is, per that change's task 4.1) is the only
 implementation of this role today:
 
-- It loads the identity `azula link` persisted, binds that device's node
+- It loads the identity `azula link` persisted, binds that device's endpoint
   key, and serves **four** ALPNs: the identity's chat ALPN (`azula/chat/0`,
   `ChatHandler`), the LLM ALPN (`azula/llm/0`, `RelayLlmHandler` — new,
   agent chat + A2UI snapshots, see below), sync (`azula/sync/0`, the same
@@ -503,7 +503,7 @@ same "no real Ed25519 in `core` yet" reason noted above.
   5.4 — nothing yet decides *who* to open a sync session with, or dials
   siblings on reconnect), multi-device send with dial-order/first-success
   semantics (task 7.4), and keying conversations by certified root pk
-  instead of legacy node id (task 7.3, so `conversation` above is a node id
+  instead of legacy endpoint id (task 7.3, so `conversation` above is a endpoint id
   for every contact today, not yet a root pk for certified ones). A `-mock`/
   `FakeTransport` two-device sync test and broader Kotlin unit-test coverage
   (task 9.2) are also outstanding, as is an end-to-end manual pass across

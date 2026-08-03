@@ -3,14 +3,14 @@
 ## ADDED Requirements
 
 ### Requirement: Machine Identity Key
-Each azula installation SHALL hold a stable machine identity keypair persisted at `~/.azula/machine.key`, adopting an existing `~/.azula/bridge.key` unchanged on first run so prior phone pairings keep working (the node id is unchanged). The machine key SHALL sign session certificates and SHALL be the identity a phone pairs with.
+Each azula installation SHALL hold a stable machine identity keypair persisted at `~/.azula/machine.key`, adopting an existing `~/.azula/bridge.key` unchanged on first run so prior phone pairings keep working (the endpoint id is unchanged). The machine key SHALL sign session certificates and SHALL be the identity a phone pairs with.
 
 #### Scenario: bridge.key migrates in place
 - **WHEN** azula runs on a machine that has `bridge.key` but no `machine.key`
-- **THEN** the bridge key becomes the machine key and the machine's node id — and thus existing pairings — are unchanged
+- **THEN** the bridge key becomes the machine key and the machine's endpoint id — and thus existing pairings — are unchanged
 
 ### Requirement: Per-Session Keys and Certificates
-Every azula process that talks to a device (an MCP server, a terminal host, a scripted session) SHALL use its own session keypair, never the machine key directly, and SHALL present an `azd…` certificate in `Hello.cert` binding the session key (`device_pk`) to the machine key (`root_pk`) with the session role flag set and an expiry (default 7 days). Concurrent sessions SHALL therefore never share a node id.
+Every azula process that talks to a device (an MCP server, a terminal host, a scripted session) SHALL use its own session keypair, never the machine key directly, and SHALL present an `azd…` certificate in `Hello.cert` binding the session key (`device_pk`) to the machine key (`root_pk`) with the session role flag set and an expiry (default 7 days). Concurrent sessions SHALL therefore never share a endpoint id.
 
 #### Scenario: Two Claude Code windows, two conversations
 - **WHEN** two MCP sessions run concurrently on one paired machine
@@ -28,7 +28,7 @@ A session SHALL be nameable via `--session <name>` or `AZULA_SESSION`, with its 
 - **THEN** it mints a new ephemeral session key and the phone gets a new conversation
 
 ### Requirement: Phone Auto-Accepts Certified Sessions as Flat Conversations
-The app SHALL admit a connecting stranger without invite or pending prompt when all of the following hold: its `Hello.cert` decodes and self-verifies (signature by `root_pk`, unexpired), carries the session role flag, its `root_pk` equals the root/node key of an already-paired machine contact, and its `device_pk` equals the transport peer node id. An admitted session SHALL get its own auto-created conversation (flat in the conversation list, titled from the session's `Profile` frame). A cert failing any check SHALL fall through to the ordinary invite gate.
+The app SHALL admit a connecting stranger without invite or pending prompt when all of the following hold: its `Hello.cert` decodes and self-verifies (signature by `root_pk`, unexpired), carries the session role flag, its `root_pk` equals the root/endpoint key of an already-paired machine contact, and its `device_pk` equals the transport peer endpoint id. An admitted session SHALL get its own auto-created conversation (flat in the conversation list, titled from the session's `Profile` frame). A cert failing any check SHALL fall through to the ordinary invite gate.
 
 #### Scenario: Session admitted without prompt
 - **WHEN** a session presents a valid unexpired session cert chaining to a machine the phone has paired with

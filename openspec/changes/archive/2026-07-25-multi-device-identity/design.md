@@ -2,12 +2,12 @@
 
 ## Context
 
-Today an azula identity is exactly one iroh node keypair (`identity`
-spec): the node id is the identity, contacts/invites/conversations key on
+Today an azula identity is exactly one iroh endpoint keypair (`identity`
+spec): the endpoint id is the identity, contacts/invites/conversations key on
 it, history is per-device JSON with no sync, and restore-from-phrase
 *replaces* a device's key (the in-flight `recovery-restore-ux` change is
 already wrestling with those semantics). The CLI's `serve`/`serve-mcp`
-daemons hold separate persistent node identities and the bridge has a
+daemons hold separate persistent endpoint identities and the bridge has a
 per-device JSONL mailbox — the only store-and-forward in the system.
 
 Research inputs that shaped this design:
@@ -23,7 +23,7 @@ Research inputs that shaped this design:
 - **Prior art converges** (Matrix cross-signing, Jami's account-CA, ATProto
   PDS, p2panda/Bamboo, Berty): a root identity key signs per-device
   certificates; state is signed append-only logs replicated between the
-  identity's devices; an always-online node is "just another device" that
+  identity's devices; an always-online endpoint is "just another device" that
   stores and forwards. p2panda-net implements exactly this on iroh
   (log-sync for catch-up + gossip only for live nudges).
 
@@ -60,27 +60,27 @@ Research inputs that shaped this design:
 
 ## Decisions
 
-### 1. Root identity keypair above device node keys
+### 1. Root identity keypair above device endpoint keys
 
 A root Ed25519 keypair is the identity. Each device keeps its own iroh
-node keypair for transport and holds a **device certificate** signed by
+endpoint keypair for transport and holds a **device certificate** signed by
 the root key. Contacts pin the root public key.
 
-- *Why not share one node secret across devices?* Two live iroh endpoints
-  with the same node key is undefined/untested behavior (discovery and
-  relay routing assume node id ↔ one endpoint), and revocation would be
+- *Why not share one endpoint secret across devices?* Two live iroh endpoints
+  with the same endpoint key is undefined/untested behavior (discovery and
+  relay routing assume endpoint id ↔ one endpoint), and revocation would be
   impossible — you cannot un-share a secret (the Nostr footgun).
 - *Why not iroh-docs' namespace/author keys?* Unblessed pre-1.0 crate,
   heavy dependency chain, and set-reconciliation internals are much harder
   to spec for a smaller implementing model than cursor-based log exchange.
 
-**Migration is the clever part:** on upgrade, the existing 32-byte node
+**Migration is the clever part:** on upgrade, the existing 32-byte endpoint
 secret **becomes the root secret**, and the migrating device initially
 keeps using it as its device key too (a self-certificate where
 `device_pubkey == root_pubkey` is valid). The recovery phrase is
-unchanged, the node id peers dial is unchanged, and legacy contacts that
-pinned the old node id are automatically pinning the root key. Only
-newly-linked devices mint distinct node keys.
+unchanged, the endpoint id peers dial is unchanged, and legacy contacts that
+pinned the old endpoint id are automatically pinning the root key. Only
+newly-linked devices mint distinct endpoint keys.
 
 ### 2. Device certificates: fixed binary layout, `azd` encoding
 
@@ -92,7 +92,7 @@ version    1B  = 0x01
 flags      1B  bit0 = mailbox role, bit1 = bot role (reserved, never set
                in this change), bits 2–7 reserved (0 on encode, ignored)
 root_pk   32B  Ed25519 root public key
-device_pk 32B  Ed25519 device (iroh node) public key
+device_pk 32B  Ed25519 device (iroh endpoint) public key
 issued_at  4B  u32 unix seconds
 expires_at 4B  u32 unix seconds, 0 = never
 name_len   1B  0–63
@@ -124,7 +124,7 @@ Two ways a device joins an identity, with different authority:
   root authority (can enroll and revoke other devices). This replaces
   the old "restore overwrites the identity" semantics and subsumes the
   `recovery-restore-ux` open questions.
-- **QR-link enrollment**: the new device generates a node keypair and
+- **QR-link enrollment**: the new device generates a endpoint keypair and
   displays a link QR (`"azl" + base32` of `version 1B | device_pk 32B |
   name_len 1B | name nB | ticket_len 2B | ticket nB`). An existing
   root-holding device scans it, dials the embedded ticket on the new
@@ -215,7 +215,7 @@ requires every device including the mailbox to be down.
 
 The invitations model is untouched at its core (issuer-authoritative
 store, device-scoped tickets). Two additions: `Hello` carries an optional
-`cert` field, and "known peer" extends from node-id matching to
+`cert` field, and "known peer" extends from endpoint-id matching to
 "presented cert verifies and its `root_pk` is in contacts." A cert that
 fails verification is treated as absent (the connection falls into the
 existing stranger/invite path — it grants nothing). Accepting a
@@ -355,20 +355,20 @@ integration test module that does depend on it).
 - [iroh-kmp Central publish latency gates app work] → Sequence tasks so
   the SDK additions land first; app work can develop against
   `publishToMavenLocal` but cannot land until the Central version exists.
-- [Legacy peers never send certs] → Fully supported forever: node-id
+- [Legacy peers never send certs] → Fully supported forever: endpoint-id
   keyed conversations and the existing invite gate remain; own-device
   history sync works regardless of what the peer runs.
 
 ## Migration Plan
 
 1. Ship iroh-kmp additive crypto functions (new Central version).
-2. On first post-upgrade launch, the app treats its existing node secret
+2. On first post-upgrade launch, the app treats its existing endpoint secret
    as the root secret (phrase unchanged), self-issues a
    `device_pk == root_pk` certificate, and appends `device_add` — a
    single-device identity, wire-compatible with old peers.
 3. Linking, sync, and mailbox features activate as devices are added.
 4. Rollback: a migrated single-device identity that never linked a
-   second device behaves exactly as before (same key, same node id), so
+   second device behaves exactly as before (same key, same endpoint id), so
    rolling the app back is safe until a second device is linked.
 
 ## Open Questions

@@ -5,7 +5,7 @@ shares in links and QR codes. A bare ticket is a permanent bearer credential —
 anyone who ever sees it can dial the endpoint forever. An invite still carries
 the ticket (so the redeemer can dial), but adds identity (an invite id), a
 validity window, optional single-use semantics, and an optional Ed25519
-signature by the issuer's node key, and — the actual security gate — **must be
+signature by the issuer's endpoint key, and — the actual security gate — **must be
 presented back to the issuer at connect time**.
 
 ## Trust model
@@ -22,8 +22,8 @@ signed+expiry scheme was rejected: revocation and the "my invites" list need
 issuer-side persistence anyway, and the store lookup makes unsigned invites
 just as safe on the accept side.
 
-Signing key = the node's iroh secret key (Ed25519). The verifying key is the
-node id embedded in the payload's ticket — no separate key material exists
+Signing key = the endpoint's iroh secret key (Ed25519). The verifying key is the
+endpoint id embedded in the payload's ticket — no separate key material exists
 (see [identity.md](../identity/design.md)).
 
 ## Payload layout
@@ -39,7 +39,7 @@ Binary, all integers **big-endian**:
 | 14 | 4 | `expires_at` | unix seconds, u32; `0` = never expires |
 | 18 | 2 | `ticket_len` | = n |
 | 20 | n | `ticket` | issuer `EndpointTicket` bytes (`iroh_tickets::Ticket::to_bytes`, postcard). Opaque to the codec |
-| 20+n | 64 | `signature` | present iff flags bit 0; Ed25519 over bytes `[0, 20+n)` by the issuer node key |
+| 20+n | 64 | `signature` | present iff flags bit 0; Ed25519 over bytes `[0, 20+n)` by the issuer endpoint key |
 
 Typical real tickets are ~90–150 bytes, so encoded invites run ~180–275 chars
 unsigned, ~280–380 signed. `u32` timestamps roll over in 2106 — accepted.
@@ -65,7 +65,7 @@ Legacy forms `https://azula.app/s/<ticket>`, `/connect/<ticket>`, and
 field:
 
 ```json
-{"type":"hello","name":"<node id hex>","invite":"azi…"}
+{"type":"hello","name":"<endpoint id hex>","invite":"azi…"}
 ```
 
 Kotlin: `Frame.Hello(name, invite: String? = null)` (network-api
@@ -80,7 +80,7 @@ accepted (after which it is a known peer and the invite is dropped).
 certificate:**
 
 ```json
-{"type":"hello","name":"<node id hex>","invite":"azi…","cert":"azd…"}
+{"type":"hello","name":"<endpoint id hex>","invite":"azi…","cert":"azd…"}
 ```
 
 Kotlin: `Frame.Hello(name, invite, cert: String? = null)`. Rust:
@@ -99,7 +99,7 @@ what grants a stranger permission to connect at all. As of this writing only
 
 ## Verification (accept side)
 
-A connecting peer is **known** if its node id matches an enabled conversation,
+A connecting peer is **known** if its endpoint id matches an enabled conversation,
 a saved peer entry, or the contacts list of previously accepted peers (CLI: a
 registered device). Known peers connect exactly as before — no gate.
 
@@ -107,11 +107,11 @@ For a stranger, the acceptor reads the first frame (15 s timeout) and requires
 `Hello.invite`. The invite is valid iff **all** of:
 
 1. payload decodes and `version == 1`;
-2. the embedded ticket's node id **is my own node id** (the invite was issued
+2. the embedded ticket's endpoint id **is my own endpoint id** (the invite was issued
    by me, addressed to me);
 3. `invite_id` exists in my issued-invite store (⇒ not revoked);
 4. `expires_at == 0` or `now < expires_at`;
-5. if flags bit 0: the signature verifies against my node key;
+5. if flags bit 0: the signature verifies against my endpoint key;
 6. if flags bit 1: the invite has not already been consumed.
 
 App: a valid stranger becomes a **pending request** (persisted; stream held
@@ -132,12 +132,12 @@ sharing a persona is an optional inline step, never blocking.
 
 ## Certificates extend the known-peer gate, they don't replace it
 
-Multi-device identity extends "known" from node-id matching to
+Multi-device identity extends "known" from endpoint-id matching to
 root-identity matching, without touching the invite mechanism above at all —
 the trust-gate is extended, not replaced (see the `multi-device-identity`
 change's Decision 6). A connecting peer is now known if **either**:
 
-- its node id matches an enabled conversation, a saved peer entry, or the
+- its endpoint id matches an enabled conversation, a saved peer entry, or the
   accepted-contacts list (unchanged), **or**
 - it presented a `Hello.cert` that verifies (signature, expiry), is not
   revoked, and whose `root_pk` is already in the accepted-contacts list —
@@ -169,18 +169,18 @@ certificate verifies but its root isn't yet a known contact
 ("certified stranger" — the certificate is genuine, just new to us), the
 connection still goes through the ordinary invite-gated pending-request flow.
 If the user accepts, the contact is recorded by **root public key** rather
-than node id, and any other certified device of that same identity is
+than endpoint id, and any other certified device of that same identity is
 subsequently known by the root-match path above with no further invite —
 "the contact's laptop lands in the existing conversation" the moment it
 first presents a valid certificate, rather than creating a second contact
-keyed on its own node id.
+keyed on its own endpoint id.
 
 ## Stores
 
 - **App** (`InvitationsStore`, JSON blob per the `ProfileStore` pattern): one
   file `{ "issued": [IssuedInvite], "pending": [PendingInvite], "contacts":
-  [nodeIdHex] }` with `IssuedInvite {id, createdAt, expiresAt, flags, label?,
-  consumed}` and `PendingInvite {nodeId, inviteId?, receivedAt, peerCode,
+  [endpointIdHex] }` with `IssuedInvite {id, createdAt, expiresAt, flags, label?,
+  consumed}` and `PendingInvite {endpointId, inviteId?, receivedAt, peerCode,
   unverified}`.
 - **CLI**: `~/.azula/invites.json` (same `IssuedInvite` shape; dir overridable
   like the registry). Minted by `azula invite [--expires 1h|24h|7d|never]
@@ -188,7 +188,7 @@ keyed on its own node id.
   revoked by `azula invite revoke <id>`. `serve`/`serve-mcp` mint a signed
   24 h invite for their startup pairing QR instead of printing the raw
   ticket. `azula invite` targets the `serve` identity by default and the
-  bridge identity with `--bridge` — these are different persisted node keys
+  bridge identity with `--bridge` — these are different persisted endpoint keys
   (see [`mcp-bridge.md`](../mcp-bridge/design.md#pairing-flow)), so an invite must be
   minted for whichever identity (`azula serve` vs. `serve-mcp`/`mcp`) is
   meant to accept it.
@@ -245,7 +245,7 @@ public key above and reject it with the last signature byte XORed with `0x01`.
   (default on for one release, requests land marked "unverified", then
   default off).
 - Old ↔ new `Hello` is wire-compatible in both directions (missing/extra
-  `invite` field tolerated). Already-paired peers are known by node id and
+  `invite` field tolerated). Already-paired peers are known by endpoint id and
   unaffected everywhere.
 - Mailbox, media, and terminal flows are untouched — the gate runs at
   connection accept, before any wiring.
@@ -262,17 +262,17 @@ public key above and reject it with the last signature byte XORed with `0x01`.
   — and is exercised today by `azula mailbox`'s chat ALPN
   (see [`account-sync.md`](../account-sync/design.md#the-mailbox-role)).
 - The app's `ConnectService.isKnownPeer` has **not yet** been extended to
-  consider certificates at all — it still checks node id only (against
+  consider certificates at all — it still checks endpoint id only (against
   conversations, `PeerStore`, and `InviteService`'s accepted contacts). Root
   pinning on accept, and keying a certified contact's conversation by root
-  pk instead of node id, are likewise not yet wired app-side
+  pk instead of endpoint id, are likewise not yet wired app-side
   (`multi-device-identity` tasks 7.2/7.3/7.4). The wire format and the
   Rust reference gate are done; the Kotlin accept-side logic described in
   this section is the outstanding half.
 
 ## Future work (out of scope)
 
-- Worker-side full signature verification on the invite page (needs node-id
+- Worker-side full signature verification on the invite page (needs endpoint-id
   extraction from the postcard ticket in TS).
 - QR alphanumeric-mode optimization (uppercase base32) for smaller QR codes.
 - Gating the media ALPN on known peers.

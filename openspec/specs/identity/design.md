@@ -12,11 +12,11 @@ phrase/restore flows around it.
 ## What identity is
 
 An azula identity **is** a root Ed25519 keypair — a 32-byte secret, held by
-at least one device. Each *device* additionally holds its own iroh node
+at least one device. Each *device* additionally holds its own iroh endpoint
 keypair, used for transport exactly as before multi-device identity: the
-node id (hex-encoded pubkey) is what makes a device's "code"/ticket/QR stable
-across relaunches — lose a device's node key and that one device gets a new
-unrelated node id. Peers identify a *contact* by root public key once that
+endpoint id (hex-encoded pubkey) is what makes a device's "code"/ticket/QR stable
+across relaunches — lose a device's endpoint key and that one device gets a new
+unrelated endpoint id. Peers identify a *contact* by root public key once that
 contact has presented a certified device (see [`invitations.md`](../invitations/design.md));
 a device presents its membership in an identity via a **device certificate**
 signed by the root key (see [`device-linking.md`](../device-linking/design.md)
@@ -24,26 +24,26 @@ for the certificate format, enrollment, and revocation). No account, no
 server-side identity — the root secret alone is what "being" the identity
 means.
 
-A device's own node key still **signs invitations**: an issued invite can
-carry an Ed25519 signature by the *device's* node key, verified against the
-node id embedded in the invite's ticket (see [`invitations.md`](../invitations/design.md)) —
+A device's own endpoint key still **signs invitations**: an issued invite can
+carry an Ed25519 signature by the *device's* endpoint key, verified against the
+endpoint id embedded in the invite's ticket (see [`invitations.md`](../invitations/design.md)) —
 mechanically unchanged, only its name changed (previously "the identity key,"
-back when node key and identity key were the same 32 bytes on every device,
+back when endpoint key and identity key were the same 32 bytes on every device,
 because there was only one device). The root key signs exactly two things:
 device certificates and revocation statements. No other payload is signed by
 either key.
 
 **Upgrade in place** is the mechanism that keeps this from being a breaking
 change for anyone already using azula: on first launch after upgrading, a
-device's existing node secret **becomes** the root secret unchanged, and the
+device's existing endpoint secret **becomes** the root secret unchanged, and the
 device keeps using that very same 32 bytes as its device key too — a
 self-certificate where `device_pk == root_pk`
 (`RootIdentityMigration.selfCertify` in `core`, computed again and durably
 logged by `AccountSyncService.ensureSelfCertified` in `shared` once
-`ConnectService.start()` binds). The recovery phrase, the node id, and every
+`ConnectService.start()` binds). The recovery phrase, the endpoint id, and every
 existing contact are unaffected — they were already keyed on this same 32
 bytes, which now simply also plays the root role. Only a device joined via
-**QR-link enrollment** ever holds a node key distinct from the identity's
+**QR-link enrollment** ever holds a endpoint key distinct from the identity's
 root key; see [`device-linking.md`](../device-linking/design.md#qr-link-vs-phrase-enrollment-two-different-authorities)
 for what that device does and doesn't hold.
 
@@ -63,10 +63,10 @@ identity, never a standalone identity of its own — see
 ## The recovery phrase: BIP-39, 24 words
 
 `azula-app/core/src/dev/azula/core/RecoveryPhrase.kt` encodes the raw 32-byte
-**root secret** — never a device node key — as a standard **BIP-39 24-word
+**root secret** — never a device endpoint key — as a standard **BIP-39 24-word
 English mnemonic** (the crypto-wallet standard) over `Bip39Wordlist.kt`'s
 2048-word list — reusing an established format rather than inventing one.
-Device node keys have no mnemonic encoding of their own: a QR-linked device
+Device endpoint keys have no mnemonic encoding of their own: a QR-linked device
 holds no root secret at all, so its "reveal recovery phrase" entry point has
 nothing to reveal, permanently — not a transient "not bound yet" state (see
 "Export flow" below).
@@ -89,14 +89,14 @@ and negative cases (bad checksum, unknown word, wrong count). Run via
 
 ## Where the key lives per platform
 
-`IrohTransport` (`network-api/.../IrohTransport.kt`) exposes a **node-key**
+`IrohTransport` (`network-api/.../IrohTransport.kt`) exposes a **endpoint-key**
 seam (`secretKeyBytes(): ByteArray?` / `suspend fun importSecretKey(bytes)`,
-persist + re-bind so `nodeId`/`myTicket()` reflect the restored key) and,
+persist + re-bind so `endpointId`/`myTicket()` reflect the restored key) and,
 since multi-device identity, an independent **root-secret** seam
 (`rootSecretBytes(): ByteArray?` / `fun importRootSecret(bytes)`, persist
-only — the root secret never determines a device's node id, so importing it
+only — the root secret never determines a device's endpoint id, so importing it
 never re-binds transport by itself). Per the identity capability's
-Per-Platform Key-at-Rest Storage requirement, "the root secret and node key
+Per-Platform Key-at-Rest Storage requirement, "the root secret and endpoint key
 SHALL be stored under distinct entries" — each `network-real` impl persists
 the two as two separate entries in the same underlying store:
 
@@ -106,14 +106,14 @@ the two as two separate entries in the same underlying store:
   accounts `endpoint_key`/`root_secret`), each falling back to a plaintext
   file (`~/.azula/endpoint.key`/`root.key`) if the Keychain is unavailable;
   other desktop OSes use the plaintext files directly (no dependency-free
-  per-OS keystore CLI exists there). The node entry keeps its pre-existing
-  name so an existing install's node key — and therefore its node id — reads
+  per-OS keystore CLI exists there). The endpoint entry keeps its pre-existing
+  name so an existing install's endpoint key — and therefore its endpoint id — reads
   back unchanged across the upgrade; the root entry is new and starts
   absent, which is exactly the signal the upgrade-in-place migration reads
-  to decide this device needs to adopt its node secret as its root secret.
+  to decide this device needs to adopt its endpoint secret as its root secret.
 - **Android** — `android-app/src/AndroidSecretKeyStore.kt`:
   `EncryptedSharedPreferences` file `"azula_secret"`, two keys
-  (`"endpoint_key"` for the node entry, `"root_secret_key"` for the root
+  (`"endpoint_key"` for the endpoint entry, `"root_secret_key"` for the root
   entry), Base64, AES256_SIV/GCM via a Keystore master key; injected into
   `IrohConfig.keyStore` from `AzulaApplication.kt`. Self-heals a corrupt
   post-reinstall keyset (`AEADBadTagException`) by deleting and recreating
@@ -124,12 +124,12 @@ the two as two separate entries in the same underlying store:
   live in the platform Keychain (service `app.azula.identity`, accounts
   `endpoint_key`/`root_secret`), each with an `NSUserDefaults` fallback
   (`azula_iroh_secret_key`/`azula_root_secret_key`, hex strings) if the
-  Keychain write fails. A pre-existing plaintext node-key value migrates
+  Keychain write fails. A pre-existing plaintext endpoint-key value migrates
   into the Keychain in place the first time it's read — verified by reading
   it back before the plaintext copy is deleted, so there is never a window
   with the key nowhere.
 
-Both `bind()`/`importSecretKey()` (node key) and `importRootSecret()` (root
+Both `bind()`/`importSecretKey()` (endpoint key) and `importRootSecret()` (root
 secret) funnel through the same per-entry store, so a restore lands where a
 normal bind/read finds it on the next launch. `-mock` apps (`FakeTransport`)
 persist nothing for either entry — every launch is a throwaway identity with
@@ -145,15 +145,15 @@ no root secret at all.
 2. Step 1 is warning-only: "Anyone who has them can take over your identity —
    only store them in a password manager, and never share them." Reveal/Cancel.
 3. `exportRecoveryPhrase()` now reads `transport.rootSecretBytes()` (not the
-   node key) and encodes it. A `null` result is disambiguated into two
-   distinct dialog states rather than one generic failure: if a node id is
+   endpoint key) and encodes it. A `null` result is disambiguated into two
+   distinct dialog states rather than one generic failure: if a endpoint id is
    already known but there's simply no root secret yet, the dialog reads
    "No recovery phrase on this device" — the **permanent** QR-linked case
    ("This device joined the identity via a QR link, so the recovery phrase
    was never stored here — it lives only on devices that were set up with it,
-   or that restored it."); if no node id is known yet either, it's the
+   or that restored it."); if no endpoint id is known yet either, it's the
    ordinary **transient** not-bound-yet case, "Your key isn't ready yet.
-   Connect once so the node comes online, then try again." Distinguishing
+   Connect once so the endpoint comes online, then try again." Distinguishing
    the two matters because a QR-linked device will *never* satisfy the
    transient case by waiting — telling it to "connect and try again" would be
    permanently bad advice.
@@ -219,9 +219,9 @@ didn't eliminate.
    — this check runs regardless of which path above was taken.
 4. On a valid phrase, `importRecoveryPhrase()`:
    a. Persists the decoded root secret (`transport.importRootSecret`) —
-      this **never** touches the device's own node key or rebinds the
+      this **never** touches the device's own endpoint key or rebinds the
       transport just to adopt a root secret; the device keeps (or, on a
-      fresh install, already minted at its first `bind()`) its own node
+      fresh install, already minted at its first `bind()`) its own endpoint
       keypair regardless of which identity it now holds root authority for.
    b. Self-issues its own device certificate under the newly-held root and
       appends a `device_add` log entry for it
@@ -269,7 +269,7 @@ device: with its own 24-word phrase.
 
 **3.5c — `reconnectSaved()` is rescoped, not skipped, and only on the
 destructive path.** Under enrollment semantics a same-identity restore keeps
-its node key, so its saved peer tickets stay valid and untouched — the
+its endpoint key, so its saved peer tickets stay valid and untouched — the
 original `recovery-restore-ux` concern (that a restore's reconnect attempt
 against old tickets is a dead end) simply doesn't arise there anymore, and
 is documented as intentionally unchanged. It only arises on 3.5a's
@@ -286,7 +286,7 @@ clears `PeerStore` before rebinding, so the post-rebind `reconnectSaved()`
   also issue and revoke device certificates for it (see
   [`device-linking.md`](../device-linking/design.md)). This is a strictly
   larger blast radius than the pre-multi-device model's "take over this one
-  device's node id," not a smaller one: the phrase now grants authority over
+  device's endpoint id," not a smaller one: the phrase now grants authority over
   every device of the identity, present and future.
 - **Does not expose message history by itself.** The phrase alone decodes
   only the root secret; message history, contacts, and read state reach a
@@ -308,7 +308,7 @@ clears `PeerStore` before rebinding, so the post-rebind `reconnectSaved()`
 - `azula-app/core/test/RecoveryPhraseTest.kt`, `DeviceCertTest.kt`, and
   `CrossLanguageVectorTest.kt` via `./check -m core`.
 - Manual: reveal a phrase on one install, restore it into a second (or after
-  clearing app data) → confirm the node id/"your code" of *each* device stays
+  clearing app data) → confirm the endpoint id/"your code" of *each* device stays
   its own, the two converge on one contact list via sync, and a peer with
   either device's ticket can still reach the identity.
 - Platform-specific: Android uninstall/reinstall (exercise the
@@ -326,6 +326,6 @@ mechanism: each long-lived identity (`serve`, `bridge`, and the demos crate's
 `load_or_create_secret(name)`. Falls back to an ephemeral in-memory key
 (logged warning) if `$HOME` is unset or unwritable — connect code then changes
 every run. A device enrolled via `azula link` is a different case: its
-persisted node key (`~/.azula/link.key`, identity name `"link"`) is a
+persisted endpoint key (`~/.azula/link.key`, identity name `"link"`) is a
 *device* of someone else's multi-device identity, not a standalone identity
 of its own — see [`device-linking.md`](../device-linking/design.md).

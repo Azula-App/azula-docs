@@ -16,8 +16,15 @@ bindings SHALL live under the `app.azula.iroh` package.
 - **THEN** it SHALL reference `app.azula.iroh:iroh-kmp:<VERSION_NAME>` and
   import generated types from the `app.azula.iroh` package
 
-### Requirement: Backward-compatible transport surface
-The SDK SHALL preserve the original azula transport surface (`IrohEndpoint.bind`, `nodeId()`, `secretKeyBytes()`, `myTicket()`, `connect()`, `acceptNext()`, `shutdown()`, `sign()`, `IrohStream.sendBytes/recv/finish`, `rttMs()`, and the ticket/signature free functions) byte-for-byte in signature and observable behavior across SDK changes.
+### Requirement: Transport surface tracks the iroh crate
+While at v0.x the SDK SHALL name its surface after the `iroh` crate it wraps rather than hold a name stable for compatibility, so a rename in iroh may be followed by a breaking rename here. Behavior-preserving additions SHALL remain purely additive; a rename SHALL bump the minor version and SHALL land together with the azula-app change that adopts it, so no consumer is left on a half-migrated surface.
+
+#### Scenario: iroh renames part of the API this SDK wraps
+- **WHEN** a new iroh release renames a type or method the SDK exposes (as iroh
+  1.0 renamed node → endpoint: `EndpointAddr`, `Endpoint::id`, `Endpoint::addr`)
+- **THEN** the SDK SHALL adopt the new name rather than translate back to the old
+  one, bump its minor version, and land the azula-app call-site update in the
+  same pass
 
 #### Scenario: Adding new core-iroh API surface
 - **WHEN** new core-iroh functionality (e.g. `IrohConnection`, `bind_with`,
