@@ -95,8 +95,14 @@
   fence and the date is UTC
 - [x] 6.4 Run `release_notes.sh` against a checkout of `v0.0.7` and confirm it
   takes the skip-with-warning path (no `CHANGELOG.md` in that tree)
-- [ ] 6.5 Dry-run `publish.yml` against the current newest tag and confirm both
+- [x] 6.5 Dry-run `publish.yml` against the current newest tag and confirm both
   job summaries show the store text and that no store call was made
+  — done as far as `v0.0.7` allows ([run 31334967212](https://github.com/Azula-App/azula-app/actions/runs/31334967212)):
+  both jobs took the skip path and every store step reported `skipped`. The
+  store-text half cannot be shown by a tag that has no `CHANGELOG.md`, so it
+  rides on 6.6. iOS failed at the pre-existing `altool --validate-app` step
+  (build number 7 already uploaded — any re-validation of a shipped tag 409s),
+  which is unrelated to release notes.
 - [ ] 6.6 Cut `v0.0.8`, confirm the promotion commit landed on `main`, the tag
   points at it, and the tag's tree carries its own `## [0.0.8]` section with both
   tiers
