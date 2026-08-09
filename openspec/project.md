@@ -259,6 +259,13 @@ changing the page first, then the derived copies in §13.
 
 - Custom fonts fall back to system families until `.ttf` are added to
   `azula-app/shared/composeResources/font/`.
+- A user-observable change to azula-app updates `azula-app/CHANGELOG.md` under
+  `## [Unreleased]` **in the same commit** — both tiers: the `### Store notes`
+  block (shipped verbatim to Play/TestFlight/App Store, under 500 bytes) and the
+  detailed entry under `### Added` / `### Fixed` / etc. Only what a user could
+  notice belongs there; dependency bumps, refactors, tests, CI, and docs do not.
+  Cutting a release fails if either tier is empty — see
+  [`specs/release-notes/`](specs/release-notes/).
 - Land finished work on `main` in the same session: once a change is
   implemented and verified, commit it and get it onto `main` (push directly for
   small/doc changes; merge the worktree branch for larger ones), then clean up

@@ -9,10 +9,18 @@ re-wiring triggers and secrets — see [Porting to another CI](#porting-to-anoth
 ## The two workflows
 
 **`release.yml`** — manual (`workflow_dispatch`), takes a `major | minor | patch`
-choice. It reads the newest `v*` tag, bumps it, and pushes the new tag. That is all
-it does. It does **not** auto-run `publish.yml`: a tag pushed by a workflow's
-`GITHUB_TOKEN` doesn't trigger other workflows (GitHub's loop-prevention), so
-`publish.yml`'s `on: push` never fires from here.
+choice. It reads the newest `v*` tag and bumps it; validates and freezes
+`CHANGELOG.md`'s `[Unreleased]` section as that version (see [Release
+notes](#release-notes)); commits that to `main`; and tags **that commit**. It does
+**not** auto-run `publish.yml`: a tag pushed by a workflow's `GITHUB_TOKEN`
+doesn't trigger other workflows (GitHub's loop-prevention), so `publish.yml`'s
+`on: push` never fires from here.
+
+It is therefore no longer read-only — it pushes one commit to `main` per release.
+**If `main` ever gains branch protection** requiring reviews or status checks,
+that push fails and releases cannot be cut until the Actions app has a ruleset
+exemption, or the promotion moves into a PR. Decide that before protecting the
+branch, not after.
 
 **`publish.yml`** — you **dispatch it by hand** against a tag. It derives the version
 from the tag and, in parallel, builds, signs, and **validates** both platforms
@@ -56,8 +64,59 @@ every code grows; narrowing them is not.
   can never ship a version different from its host — Apple rejects that.
 
 The committed values in those files are placeholders (`0.0.0` / `1`); only a
-release run's stamped values are real. Nothing is committed back — the tag is the
-record.
+release run's stamped values are real. The version itself is never committed back
+— the tag is the record. (The changelog promotion below *is* committed, and it is
+the only thing a release run writes to the repo.)
+
+## Release notes
+
+`azula-app/CHANGELOG.md` carries two tiers per version: a `### Store notes` fenced
+block holding the exact text Play, TestFlight, and the App Store receive, and a
+Keep a Changelog body (`### Added` / `### Fixed` / …) holding the full record.
+Both are written in the same commit as the change they describe, and only
+user-observable changes belong in either. `specs/release-notes/` is normative;
+`.github/scripts/changelog_lib.sh` is where the format is actually parsed.
+
+The store block ships **verbatim** — no rendering, no Markdown stripping, no
+truncation — and must fit **500 characters**, which is Play's limit and the
+smallest of the three (TestFlight and the App Store allow 4000 each). One text
+for all three destinations is deliberate: two different texts for one release is
+a worse property than a tight budget on one, and the long form has a home in the
+changelog. The guard counts *bytes*, which can only reject text that would have
+fit, never admit text that would not.
+
+The promotion happens at **cut** time and this is load-bearing: `publish.yml`
+reads every repo file from the *tag's* tree, so notes that are not in the tag do
+not reach either store. Tagging the promotion commit is also what makes a rebuild
+reproducible — re-running `publish.yml` on a tag months later publishes
+byte-identical notes, exactly as it produces a byte-identical version code.
+
+`release.yml` **fails the cut** when `[Unreleased]` has no store block, no
+changelog entries, or notes over the limit. Failing there means no tag exists and
+nothing was uploaded; the fix is a commit and a re-dispatch. A release that
+genuinely changes nothing observable still needs its one honest line.
+
+At publish time, `release_notes.sh` extracts the block and both jobs print it to
+the job summary on every run, dry ones included — the validate act is where that
+text gets read. Android passes it to the Play action as `whatsNewDirectory`, so
+the notes ride the same API call as the bundle. iOS needs a second call:
+`altool` can set neither field, so `publish_ios_notes.py` writes
+`betaBuildLocalizations.whatsNew` (TestFlight "What to Test") and, when an
+editable App Store version exists, `appStoreVersionLocalizations.whatsNew`. That
+second one is a no-op until the first App Store submission.
+
+Two failure shapes are told apart on purpose. A tag whose tree has **no
+`CHANGELOG.md`** (`v0.0.1` … `v0.0.7`) warns and ships — re-publishing an old tag
+has to keep working. A tag that **has the file but not this version's section**
+fails, because the notes were expected and guessing at them is worse than
+stopping.
+
+If the iOS notes step fails after the IPA is already on TestFlight — ASC
+ingestion is asynchronous, so the build-lookup poll can time out — the binary
+shipped and only the notes are missing. `publish_ios_notes.py` is standalone and
+idempotent: re-run it against the same tag once the build appears. It re-uploads
+nothing and never risks a duplicate build number. Android has no equivalent
+exposure.
 
 ## Signing
 
@@ -198,6 +257,27 @@ run them anywhere and read the values off stdout instead:
   Uses `sed -i.bak` / `awk`, the spellings that work on both GNU and BSD.
 - `enable_signing.sh` — appends the Android signing block to `module.yaml` at
   build time (see [Signing](#signing) for why it isn't committed).
+- `changelog_lib.sh` — the changelog format, parsed with `awk`; sourced by the two
+  below. `CHANGELOG_FILE` overrides the path, which is the test seam.
+- `promote_changelog.sh` (`NEW_VERSION=X.Y.Z`) — validates and freezes
+  `[Unreleased]`. `RELEASE_DATE` overrides the stamped date so tests aren't a
+  function of the day they run on.
+- `release_notes.sh` (`RELEASE_VERSION=X.Y.Z <out-path>`) — writes a version's
+  store text. Reports `status=present|absent` on `$GITHUB_OUTPUT`, which falls
+  back to `/dev/null` when unset like the version scripts, so it runs anywhere.
+
+`publish_ios_notes.py` is the one piece that isn't bash, and it ports just as
+easily: `python3` plus `pyjwt[crypto]`, driven by `--tag`, `--build-number`, and
+`--notes-file`, with the ASC key id / issuer id / `.p8` already in the
+[credentials](#secrets--credentials) table. It is Python because the ASC API
+needs an **ES256 JWT assertion**, and openssl only emits a DER signature that
+must be unpacked into raw `R||S` before it is valid JOSE — twenty lines of
+`asn1parse` nobody wants to debug mid-release. No decisions live in it; the text
+was chosen by whoever wrote the changelog.
+
+Because it takes the **build number as an argument** rather than recomputing it,
+the `versionCode` formula still lives in exactly one place (`version_lib.sh`).
+Keep it that way.
 
 The **build and upload commands** are equally portable — they're just CLI:
 
