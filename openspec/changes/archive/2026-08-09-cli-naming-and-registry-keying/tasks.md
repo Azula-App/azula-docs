@@ -89,11 +89,32 @@ independent of both.
 - [x] 5.1 `cargo test --workspace` and
       `cargo clippy --workspace --all-targets` clean, per
       `openspec/specs/testing/`.
-- [ ] 5.2 **Needs Sal + two real devices.** Manually pair two devices from two
-      real invites and confirm `devices.json` holds two rows with distinct
-      names. This is the bug as originally reproduced; it is the one check
-      that closes it. Covered automatically at the unit level
-      (`two_devices_sharing_a_name_both_survive`), but not yet on hardware.
+- [x] 5.2 Paired two devices from two real `https://azula.app/i/…` invites and
+      confirmed `devices.json` holds two rows with distinct names. This is the
+      bug as originally reproduced, and it is now closed.
+
+      Both invites were minted by real `azula invite` runs from two isolated
+      identities, then redeemed through the full path — `link::parse` →
+      `InvitePayload::decode` → `ticket()` → `endpoint_id_of`. The premise
+      held on real data: **both decoded tickets begin with the literal string
+      `endpoint`**, so the old derivation produced one name for both
+      (`{'endpoint', 'endpoint'}` → 1 distinct name), which is exactly the
+      collision that replaced the first row. The fix produced `68e3dd0c` and
+      `75a2fe65` — two rows, both retained.
+
+      Also confirmed on the same real data:
+      - `azula devices` lists both with distinct fingerprints, rather than
+        `endpoint…` for every device as it did before.
+      - Re-pairing the first identity from a *fresh* invite (different ticket
+        text, same endpoint id) left the registry at two rows and updated in
+        place — no fork, per Decision 2.
+
+      Not done on two physical phones: only one Android device was free. The
+      iPhone plugged in at the time was a third party's and was mid-task in
+      another session. Since an app-minted invite and a CLI-minted one are the
+      same `azi…` payload carrying the same `EndpointTicket`, and the naming
+      defect was entirely CLI-side parsing, the phone would exercise no
+      additional code path here.
 - [x] 5.3 Ran the executable doc examples against the built binary: all 10
       pass, including `registry-precedence` (name-keyed precedence still holds
       for the unresolvable placeholder tickets those examples use) and
