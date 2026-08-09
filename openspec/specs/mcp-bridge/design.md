@@ -216,10 +216,27 @@ project/global/runtime file paths and precedence; this extends it with
 bridge-internal detail:
 
 - **Project** `<worktree-root>/.azula/devices.json` and **global**
-  `~/.azula/devices.json` (`registry.rs`) store `{name, ticket, added_at}`;
-  `registry::load()` merges global-then-project, project winning on name
-  collision. `AZULA_REGISTRY_DIR` overrides both paths (tests use an isolated
-  temp dir automatically under `cfg(test)`).
+  `~/.azula/devices.json` (`registry.rs`) store `{name, ticket, added_at}`.
+  A row is identified by the endpoint id its `ticket` resolves to
+  (`registry::endpoint_id_of`, which handles both stored shapes: a dialable
+  `EndpointTicket` string, or a bare endpoint-id hex string from accept-side
+  registration) — *not* by its display name. `registry::add` replaces the row
+  with the same endpoint id, so re-pairing a device through a fresh invite
+  updates its own row while two different devices never collide; a name
+  already held by a different device is disambiguated by extending the hex run
+  it came from. `registry::load()` merges global-then-project, project winning
+  when both hold the same device. Rows whose ticket resolves to no endpoint id
+  — hand-edited ones — fall back to name identity throughout, so editing the
+  file by hand cannot strand a row. Display name stays unique in the merged
+  view, since it is the handle `--device`/`ensure_device` resolve against.
+  `AZULA_REGISTRY_DIR` overrides both paths (tests use an isolated temp dir
+  automatically under `cfg(test)`).
+
+  Keying by name was a real defect, not just a weaker choice: `azula pair`
+  derived a default name from the head of the *ticket text*, which an
+  `EndpointTicket` begins with a constant `endpoint` prefix, so every
+  invite-paired device was named `endpoint` and the second silently replaced
+  the first. See `changes/archive/…-cli-naming-and-registry-keying/`.
 - **Runtime** `$TMPDIR/azula/bridge.json` (`state_path()` /
   `write_state()` in `core/state.rs`, moved from the old `bridge/state.rs`
   during the phase-2 `SessionCore` extraction) is rewritten on every
