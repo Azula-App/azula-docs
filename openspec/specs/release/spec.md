@@ -4,9 +4,7 @@
 Defines how azula-app is versioned and shipped to Google Play (production track)
 and TestFlight from one shared version, driven by two GitHub Actions workflows
 whose version and signing logic lives in portable bash scripts.
-
 ## Requirements
-
 ### Requirement: Single shared version across platforms
 The system SHALL derive both the Android version and the iOS version from a
 single newest `v*` git tag, with no separate query to Play or App Store
@@ -40,8 +38,10 @@ TestFlight; shipping SHALL require an explicit manual dispatch.
 
 #### Scenario: release.yml bumps a tag
 - **WHEN** `release.yml` is run with a `major | minor | patch` choice
-- **THEN** it SHALL only read the newest `v*` tag, bump it, and push the new tag,
-  and SHALL NOT trigger `publish.yml` or any store upload
+- **THEN** it SHALL read the newest `v*` tag, bump it, validate and promote the
+  changelog's `[Unreleased]` section into a `[X.Y.Z]` section, push that
+  promotion commit to `main`, and push a new tag pointing at that commit, and
+  SHALL NOT trigger `publish.yml` or any store upload
 
 #### Scenario: A tag is pushed by any actor
 - **WHEN** a `v*` tag is pushed (by a human, a PAT, or a workflow)
@@ -59,11 +59,17 @@ into three distinct, individually-invoked acts.
   IPA + `altool --validate-app`) and upload each as a workflow artifact, without
   uploading to Play or TestFlight
 
+#### Scenario: Reviewing the release notes before shipping
+- **WHEN** `publish.yml` is dispatched against a tag with `dry_run: true`
+- **THEN** it SHALL display the exact release-note text both stores would
+  receive, so the validate act is where that text is reviewed rather than after
+  a store has been fed
+
 #### Scenario: Shipping
 - **WHEN** `publish.yml` is dispatched against a tag with `dry_run: false` and a
   `track`
 - **THEN** it SHALL upload the Android AAB to the given Play track and the iOS
-  IPA to TestFlight
+  IPA to TestFlight, each carrying that tag's release notes
 
 ### Requirement: Android signing kept out of default builds
 Android release signing configuration SHALL NOT be declared in
@@ -120,3 +126,4 @@ The publish workflow SHALL NOT run the test suite as a release gate.
 - **THEN** it SHALL NOT run `./kotlin check`, because the known-flaky headless
   suite failing after one store has already been fed is worse than no gate;
   tests belong in PR CI instead
+

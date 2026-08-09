@@ -103,9 +103,14 @@
   rides on 6.6. iOS failed at the pre-existing `altool --validate-app` step
   (build number 7 already uploaded — any re-validation of a shipped tag 409s),
   which is unrelated to release notes.
-- [ ] 6.6 Cut `v0.0.8`, confirm the promotion commit landed on `main`, the tag
-  points at it, and the tag's tree carries its own `## [0.0.8]` section with both
-  tiers
+- [ ] 6.6 **Deferred to the first real release — not performed.** Cut `v0.0.8`,
+  confirm the promotion commit landed on `main`, the tag points at it, and the
+  tag's tree carries its own `## [0.0.8]` section with both tiers. This is the
+  only step that can exercise the notes path end to end: extraction from a tag
+  that has a changelog, the 500-byte guard against real notes,
+  `whatsNewDirectory` reaching Play, and the two App Store Connect calls. Until
+  it runs, those are verified only by the local fixture suite (6.1–6.2) and by
+  reading. Watch the first cut rather than assuming it.
 
 ## 7. Update the specs
 
@@ -116,4 +121,4 @@
   another CI" — `changelog_lib.sh`, `promote_changelog.sh`, and
   `release_notes.sh` move as-is; `publish_ios_notes.py` needs only `python3` and
   the ASC credentials already listed there
-- [ ] 7.3 Run `openspec validate --all` and `/opsx:archive` the change
+- [x] 7.3 Run `openspec validate --all` and `/opsx:archive` the change
