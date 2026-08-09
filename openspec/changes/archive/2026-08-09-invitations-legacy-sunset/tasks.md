@@ -5,11 +5,12 @@
 - [x] 1.2 Flip `--allow-legacy` default to off for CLI `serve`/`serve-mcp`/
       `mcp`. *(Removed the flag outright, from those three plus `relay`,
       `mailbox`, `terminal` and `run`.)*
-- [ ] 1.3 Confirm no old clients remain in the field before flipping (release
-      gate, not a code change). **Outstanding — Sal's call.** The code change
-      landed ahead of this: 1.1/1.2 removed the hatch outright rather than
-      flipping a default, so anyone still on a pre-invite client is cut off the
-      moment this ships. Nothing in the repo can tell how many of those exist.
+- [x] 1.3 Confirm no old clients remain in the field before flipping (release
+      gate, not a code change). **Confirmed by Sal, 2026-08-09**, after the
+      code had landed — 1.1/1.2 removed the hatch outright rather than flipping
+      a default, so the confirmation is what makes cutting off any remaining
+      pre-invite client an accepted cost rather than an open risk. Nothing in
+      the repo can answer this; it needed a human.
 
 ## 2. Remove the unverified-inbound path
 
