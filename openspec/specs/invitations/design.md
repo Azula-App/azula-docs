@@ -238,15 +238,66 @@ truncated mid-ticket is rejected. Suites with Ed25519 available (Rust; Kotlin
 via the real transport) must additionally verify V2's signature against the
 public key above and reject it with the last signature byte XORed with `0x01`.
 
-## Transition / compat
+### Real-ticket vectors (endpoint-id recovery)
 
-- Legacy `/s/` links parse forever for **outbound** dialing.
-- Inbound invite-less strangers: `allowLegacyInbound` / `--allow-legacy`
-  (default on for one release, requests land marked "unverified", then
-  default off).
-- Old ↔ new `Hello` is wire-compatible in both directions (missing/extra
-  `invite` field tolerated). Already-paired peers are known by endpoint id and
-  unaffected everywhere.
+The vectors above carry a **fake** 32-byte ASCII ticket, so they cannot
+exercise recovering the issuer key from the ticket — the thing azula.app's
+invite page needs in order to verify a signature at all. These are generated
+from `azula-cli` against real `iroh_tickets` output.
+
+An `EndpointTicket`'s postcard encoding starts with a tag byte, then the
+32-byte endpoint id, then the variable-length address set. So the id is always
+`ticket[1..33]`, however many relay/direct addresses follow:
+
+```
+bare (no addresses), endpoint key [1u8; 32]
+  endpoint_id  8a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c
+  ticket       008a88e3dd7409f195fd52db2d3cba5d72ca6709bf1d94121bf3748801b40f6f5c00
+
+relay URL + one IPv4 + one IPv6, endpoint key [3u8; 32]
+  endpoint_id  ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1
+  ticket       00ed4928c628d1c2c6eae90338905995612959273a5c63f93636c14614ac8737d1
+               03001668747470733a2f2f72656c61792e6578616d706c652f0100c0a8012c92
+               c202010120010db800000000000000000000000192c202
+```
+
+A signed invite over a real ticket — relay URL plus one IPv4 direct address,
+minted by endpoint key `[7u8; 32]` for its own ticket, signed, never expiring,
+multi-use:
+
+```
+endpoint_id  ea4a6c63e29c520abef5507b132ec5f9954776aebebe7b92421eea691446d22c
+encoded      aziaea5fl7nw5yfg3aznj4pz6iaaaaaaacdadveu3dd4kofecv66vihwezoyx4zkr
+             3wv27l464siipou2iui3jcyaqaczuhi5dqom5c6l3smvwgc6jomv4gc3lqnrss6ai
+             aycuaclesyibeloazywaf5awcyi4bhlzcmb7ires5hav3kc4pto6lf4fh4c3vtxsy
+             yrkdpf3qm2xwffz2hkjbnusmp4uvpu6azrs73eedpu2ewdz4b4
+```
+
+A suite that recovers endpoint ids must check: the id is read correctly from
+both ticket shapes above; the signed invite verifies against the key its own
+ticket names; changing its final base32 character still decodes and still
+recovers the same key, but no longer verifies; and the shared V2 vector
+**fails closed** — its fake ticket yields no usable key, which must be a
+`false`, never a throw.
+
+## Transition / compat — closed
+
+The transition hatch this section used to describe is gone (change
+`invitations-legacy-sunset`). What remains true:
+
+- **Legacy links are not parsed.** `https://azula.app/s/<token>`,
+  `/connect/<token>` and `azula://connect?code=<token>` are unrecognized input
+  in the app, the CLI, and on azula.app, where the routes now 404 and are no
+  longer claimed in the AASA file. A **bare** ticket is still accepted where a
+  ticket is expected — only the URL wrappers went away.
+- **There is no invite-less inbound path.** `allowLegacyInbound` (app) and
+  `--allow-legacy` (CLI) are removed, along with the "unverified" state a
+  pending request could be in. A stranger with no invite, or one that fails to
+  verify, has its connection closed.
+- Old ↔ new `Hello` is still wire-compatible in both directions (missing/extra
+  `invite` field tolerated) — an old peer's `Hello` parses fine, it just gets
+  gated like any other invite-less stranger. Already-paired peers are known by
+  endpoint id and unaffected everywhere.
 - Mailbox, media, and terminal flows are untouched — the gate runs at
   connection accept, before any wiring.
 
@@ -272,8 +323,6 @@ public key above and reject it with the last signature byte XORed with `0x01`.
 
 ## Future work (out of scope)
 
-- Worker-side full signature verification on the invite page (needs endpoint-id
-  extraction from the postcard ticket in TS).
 - QR alphanumeric-mode optimization (uppercase base32) for smaller QR codes.
 - Gating the media ALPN on known peers.
 - Remote push (FCM/APNs) for offline invitation delivery.
