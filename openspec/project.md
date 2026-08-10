@@ -266,20 +266,33 @@ changing the page first, then the derived copies in §13.
   notice belongs there; dependency bumps, refactors, tests, CI, and docs do not.
   Cutting a release fails if either tier is empty — see
   [`specs/release-notes/`](specs/release-notes/).
-- Land finished work on `main` in the same session: once a change is
-  implemented and verified, commit it and get it onto `main` (push directly for
-  small/doc changes; merge the worktree branch for larger ones), then clean up
-  the worktree and branch. Don't leave uncommitted edits or stranded local
-  branches behind. The exception is anything that ships: azula-site
-  auto-deploys on push to `main`, and app/CLI releases are their own flow — get
-  an explicit go-ahead before a push that deploys or releases.
+- Land finished work on `main` in the same session, without being asked. This
+  deliberately overrides the harness default ("commit or push only when the
+  user asks; if on the default branch, branch first"): once a change is
+  implemented and verified, commit it and get it onto `main` — commit straight
+  onto `main` in the shared checkout for small/doc changes, merge the worktree
+  branch for larger ones — then remove the worktree and delete the branch. A
+  change isn't done until it's on `main`; uncommitted edits, unpushed commits,
+  and stranded local branches are defects, not caution. `git commit`,
+  `git merge` and `git push` are pre-approved in the parent checkout's
+  `.claude/settings.json`, so no session needs to stop and ask.
+- Get an explicit go-ahead before a push that **ships**: azula-site auto-deploys
+  on push to `main`, app/CLI releases go out on a version tag, and force pushes
+  rewrite shared history. The `guard-shipping-push.sh` PreToolUse hook blocks
+  all three; after a go-ahead, re-run the command with `AZULA_DEPLOY_OK=1`
+  prefixed. Everything else pushes freely.
 - Never switch branches in the shared checkouts: sessions run from the parent
   directory (not a git root) and share each sibling repo's working tree, so an
   in-place `git checkout -b` changes files under every concurrent session.
-  When making code changes, create a worktree instead:
+  (Committing on the branch a checkout is *already* on is fine and is the
+  normal path for small changes — it's the switch that's unsafe.) When a change
+  needs its own branch, create a worktree instead:
   `git -C <repo> worktree add ../.worktrees/<repo>--<change> -b <change>`,
   work there, and `git -C <repo> worktree remove ../.worktrees/<repo>--<change>`
   once merged. `.worktrees/` at the parent-checkout root is the shared home for
   these (it's outside every repo, so nothing needs gitignoring). The harness's
   automatic worktree isolation can't be used here because the parent checkout
-  isn't a git repo.
+  isn't a git repo. The same hook enforces this.
+- A Stop hook (`check-unlanded-work.sh`) reports uncommitted edits, unpushed
+  commits, and unmerged worktree branches for every repo a session touched, so
+  work doesn't quietly end up stranded.
