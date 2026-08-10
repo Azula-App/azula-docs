@@ -55,13 +55,27 @@
 
 ## 5b. Release notes
 
-- [ ] 5b.1 Add the `CHANGELOG.md` entry. Neither `cc8e870` nor the follow-up
+- [x] 5b.1 Add the `CHANGELOG.md` entry. Neither `cc8e870` nor the follow-up
       `7e002af` touched `azula-app/CHANGELOG.md`, and filling a recovery phrase
       from the platform credential store is squarely user-observable — the
-      convention in `project.md` is both tiers (`### Store notes` + the
-      detailed entry) in the same commit. Flagging rather than writing it:
-      the store-notes line is a product voice call, and it ships verbatim to
-      Play/TestFlight.
+      convention in `project.md` is both tiers in the same commit. Written as
+      part of the merge (`5a62485`): an `### Added` entry plus a new store-notes
+      line, with the block re-checked at 363 bytes against the 500-byte cap.
+      **The store line ships verbatim to Play/TestFlight/App Store — reword it
+      if the voice is off.**
+
+## 5c. Landed
+
+- [x] 5c.1 Merged to `main` 2026-08-09. `azula-app` `5a62485` (feature + the
+      hit-target fix + CHANGELOG; one import conflict against the `QrCode`
+      import main had gained, resolved by keeping both, `jvm-app` compile
+      verified). `azula-site` `4135543` — which **deployed**: the
+      `get_login_creds` relation is live at
+      `https://azula.app/.well-known/assetlinks.json`, carrying the same
+      `sha256_cert_fingerprints` as the `handle_all_urls` statement. That merge
+      also needed a modify/delete resolution, since main had moved
+      `wellknown.ts`/`.test.ts` under `src/lib/`; the new case was ported to the
+      new location and the stale copy deleted. 56 site tests pass.
 
 ## 6. Tests
 
