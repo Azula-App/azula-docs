@@ -26,6 +26,17 @@
       `specs/design-system/design.md`, don't eyeball it.
 - [x] 3.3 Bidirectional state sync between the native field and Compose, so
       typing, filling, and the Restore button's `isNotBlank` gate all agree.
+- [x] 3.4 Size the interop view to the box's whole content area. Found during
+      the simulator pass (2026-08-09): the box is `heightIn(min = 84.dp)` with
+      9.dp padding, but the field was pinned to `20.dp` at the top — so ~46 of
+      the 66dp content area rendered as the input and swallowed taps. A tap at
+      the box's vertical centre did nothing, which on a phone is most of where
+      a thumb lands. The field now takes the full content height with
+      `contentVerticalAlignment = .top`, so the text sits exactly where it did
+      and the whole box is live. The 84/9 numbers moved into
+      `PhraseTextField.kt` as shared constants so the two halves can't drift
+      back apart. Verified on the simulator: tapping the former dead zone now
+      focuses the field and raises the keyboard.
 
 ## 4. Restore step UI
 
@@ -42,6 +53,16 @@
 - [x] 5.2 `npm run typecheck` and the Worker tests. Note `azula-site`
       auto-deploys on push to main — this ships the moment it merges.
 
+## 5b. Release notes
+
+- [ ] 5b.1 Add the `CHANGELOG.md` entry. Neither `cc8e870` nor the follow-up
+      `7e002af` touched `azula-app/CHANGELOG.md`, and filling a recovery phrase
+      from the platform credential store is squarely user-observable — the
+      convention in `project.md` is both tiers (`### Store notes` + the
+      detailed entry) in the same commit. Flagging rather than writing it:
+      the store-notes line is a product voice call, and it ships verbatim to
+      Play/TestFlight.
+
 ## 6. Tests
 
 - [x] 6.1 UI tests through the `LocalPhraseFiller` override: filled, cancelled,
@@ -55,6 +76,19 @@
 - [ ] 6.3 iOS check. Simulator can show whether AutoFill engages with the native
       field at all; a real provider needs a physical iPhone, which the simulator
       tooling can't drive.
+      - **Simulator half: done** (2026-08-09, iPhone 17 Pro / iOS 26.5).
+        Focusing the field and opening the edit menu offers **AutoFill**, and
+        AutoFill → **Passwords** is present — iOS's password heuristics do find
+        the embedded `UITextField`, which is the whole point of CMP-5802. With
+        nothing saved for `azula.app` the menu closes without filling, which is
+        the correct empty-vault behaviour. Also confirmed here: typing into the
+        native field flips the Restore button to enabled, so the 3.3 sync works
+        end to end.
+      - Still open: a **real provider** round trip (1Password/Passwords actually
+        returning a phrase). Needs the physical iPhone.
+      - Note for whoever runs it: the simulator defaults to the *hardware*
+        keyboard, which suppresses the QuickType/AutoFill bar entirely and makes
+        this look broken. Turn the software keyboard on first.
 - [ ] 6.4 Cross-build check: confirm the asset-link relation actually makes a
       phrase saved by one package visible to another, and test against a
       credential saved *before* the relation was published.
