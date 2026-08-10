@@ -109,12 +109,24 @@ independent of both.
         text, same endpoint id) left the registry at two rows and updated in
         place — no fork, per Decision 2.
 
-      Not done on two physical phones: only one Android device was free. The
-      iPhone plugged in at the time was a third party's and was mid-task in
-      another session. Since an app-minted invite and a CLI-minted one are the
-      same `azi…` payload carrying the same `EndpointTicket`, and the naming
-      defect was entirely CLI-side parsing, the phone would exercise no
-      additional code path here.
+      **Corroborated on hardware** (Pixel 10a `64271JEA313442`, app build
+      2026-08-03). A real `EndpointTicket` read out of the phone's own peer
+      store (`shared_prefs/azula_peers.xml` via `run-as`) begins with the
+      literal `endpoint`, and pairing it with the fixed binary stored
+      `6157996a` rather than `endpoint` — the defect and its fix on real
+      device data, not synthesised input.
+
+      Also visible on that device: the live conversation is titled
+      `bridge-6157996a`, which is defect 2 of this change (an unlabellable
+      one-shot session) as the user actually sees it.
+
+      Not done: pairing a phone as a device from a *phone-minted* invite. The
+      app's create-invite flow on that build yields nothing capturable — see
+      `changes/app-invite-mint-produces-nothing/`. That blocks the literal
+      two-phones form of this task, but not what it was meant to establish:
+      an app-minted invite and a CLI-minted one are the same `azi…` payload
+      carrying the same `EndpointTicket`, and the naming defect was entirely
+      CLI-side parsing. The ticket paired above came off the phone regardless.
 - [x] 5.3 Ran the executable doc examples against the built binary: all 10
       pass, including `registry-precedence` (name-keyed precedence still holds
       for the unresolvable placeholder tickets those examples use) and
