@@ -154,9 +154,11 @@ and a bump touches one file. Never restate a tool version in a workflow.
 
 mise owns language runtimes only. Platform SDKs stay host-provided: the Android
 SDK and NDK (via `ANDROID_HOME`), Xcode, and Docker for `cross` builds. A tool's
-absence from `mise.toml` is deliberate, not an oversight. mise also does not
-manage rustup *targets* — cross-compile targets need an explicit
-`rustup target add`. See [`specs/toolchain/`](specs/toolchain/).
+absence from `mise.toml` is deliberate, not an oversight. mise also does not manage rustup
+*targets* or *components* — cross-compile targets need an explicit
+`rustup target add`, and clippy needs `rustup component add clippy`. Both bite
+only on a clean runner: a developer machine usually already has them, so this
+is a class of bug that passes locally and fails in CI. See [`specs/toolchain/`](specs/toolchain/).
 
 - Kotlin (`azula-app/`, Amper wrapper): `./kotlin build -m jvm-app`,
   `./check -m shared`. Run from the `azula-app/` root (both wrappers are here).

@@ -123,7 +123,7 @@ cache, not a toolchain concern; it is preserved by moving it to an explicit
 runtime unchanged. This is called out because silently losing it would look
 like an unrelated slowdown later.
 
-### D5: rustup targets become an explicit step
+### D5: rustup targets and components become explicit steps
 
 `dtolnay/rust-toolchain` accepts a `targets:` input, and both Rust repos use
 it: `azula-cli/release.yml` passes `${{ matrix.target }}` per build job, and
@@ -136,6 +136,15 @@ taking the same values from the same places. This is more verbose than the
 input it replaces, and worth doing anyway: the targets become visible in the
 workflow body rather than buried in an action's inputs, and `azula-cli`'s
 matrix already makes the value explicit at the call site.
+
+The same applies to rustup **components**: `iroh-kmp`'s `ci.yml` asked
+rust-toolchain for `components: clippy`, and that needs `rustup component add
+clippy` for the same reason. This one was learned the hard way — a local check
+of `cargo clippy` passed because the developer machine's rustup already had it
+for that toolchain, and CI then failed with "'cargo-clippy' is not installed".
+Targets and components are both a class of bug that passes locally and fails on
+a clean runner, so neither can be verified on a machine that has been building
+the project already.
 
 *Alternative considered.* Keeping `dtolnay/rust-toolchain` for the Rust repos
 and using mise only for node and java — rejected, because it leaves the Rust
