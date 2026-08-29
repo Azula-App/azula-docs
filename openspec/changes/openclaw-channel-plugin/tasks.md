@@ -28,11 +28,15 @@ Sequenced first: the plugin cannot start without these (design D7).
 
 ## 2. `azula-openclaw` repo scaffold
 
-- [ ] 2.1 Create the `azula-openclaw/` sibling repo with TypeScript, Node
-      22.22.3+ engines, and the OpenClaw package layout (`package.json` with
-      `openclaw.channel` metadata, `openclaw.plugin.json`, `index.ts`,
-      `setup-entry.ts`, `src/`) — verify `npm install && npm run typecheck`
-      passes
+- [ ] 2.1 Create the `azula-openclaw/` sibling repo with TypeScript and the
+      OpenClaw package layout (`package.json` with `openclaw.channel` metadata,
+      `openclaw.plugin.json`, `index.ts`, `setup-entry.ts`, `src/`) — verify
+      `npm install && npm run typecheck` passes
+- [ ] 2.1a Pin the toolchain in `azula-openclaw/mise.toml`
+      (`node = "22.23.2"`, satisfying OpenClaw's 22.22.3+ floor) rather than in
+      a `package.json` `engines` field, per the `toolchain` capability from
+      `mise-toolchain-pinning` — verify CI reads the version from that file and
+      no workflow restates it
 - [ ] 2.2 Declare the channel config schema in `openclaw.plugin.json`
       (`channels.azula`: target device, optional binary path, session name,
       display label) — verify an invalid config is rejected at validation time,
