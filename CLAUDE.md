@@ -17,4 +17,6 @@ This repo is the cross-repo home for:
 
 Start spec'd work with `/opsx:propose`, implement with `/opsx:apply`, and
 archive with `/opsx:archive`. Use `openspec list` / `openspec validate --all`
-to inspect state.
+to inspect state. The CLI is pinned in this repo's `mise.toml`; a fresh clone
+needs `mise trust && mise install` once, after which both commands run as
+written.

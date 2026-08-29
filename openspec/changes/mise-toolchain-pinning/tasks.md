@@ -1,25 +1,25 @@
 ## 1. Convention and shared decisions
 
-- [ ] 1.1 Confirm each proposed pin is installable: run `mise install` for
+- [x] 1.1 Confirm each proposed pin is installable: run `mise install` for
       `temurin-21.0.12+8.0.LTS`, `temurin-17.0.20+8`, `rust 1.98.0`,
       `node 22.23.2` and `node 24.20.0` — verify each resolves and reports its
       expected version, and substitute the nearest available build if one does
       not
-- [ ] 1.2 Add the toolchain convention to `project.md`: exact pins in a
+- [x] 1.2 Add the toolchain convention to `project.md`: exact pins in a
       per-repo `mise.toml`, CI reads from it, platform SDKs stay host-provided,
       and `mise trust` is a one-time per-repo step — verify the build/verify
       section no longer instructs anyone to set `JAVA_HOME`
-- [ ] 1.3 Add the action-pinning convention to `project.md`: GitHub Actions are
+- [x] 1.3 Add the action-pinning convention to `project.md`: GitHub Actions are
       referenced by full commit SHA with the release tag as a trailing comment
       (`uses: owner/action@<sha> # vX.Y.Z`), never by tag alone — verify the
       convention names both halves as required
 
 ## 2. `azula-docs` (no build — safest first)
 
-- [ ] 2.1 Add `azula-docs/mise.toml` pinning `node = "22.23.2"` and declaring
+- [x] 2.1 Add `azula-docs/mise.toml` pinning `node = "22.23.2"` and declaring
       the `openspec` CLI — verify `openspec validate --all` runs from the repo
       without an `npx -p @fission-ai/openspec` prefix
-- [ ] 2.2 Update `CLAUDE.md`/`AGENTS.md` if they describe how to obtain the
+- [x] 2.2 Update `CLAUDE.md`/`AGENTS.md` if they describe how to obtain the
       CLI — verify the documented commands run as written in a fresh shell
 
 ## 3. `azula-site` (CI only, no release)

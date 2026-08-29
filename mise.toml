@@ -1,0 +1,23 @@
+# Toolchain for azula-docs. Exact pins only — see openspec/specs/toolchain/
+# and the Build / verify section of openspec/project.md.
+#
+# This repo builds nothing; node is here so the OpenSpec CLI the working
+# agreement tells you to run (`openspec list`, `openspec validate --all`) is
+# actually present, rather than needing an `npx -p @fission-ai/openspec` prefix.
+
+[tools]
+node = "22.23.2"
+"npm:@fission-ai/openspec" = "1.11.0"
+
+[settings]
+# Resolve npm dependency trees with the npm CLI rather than mise's built-in
+# resolver. mise's own resolver selects fastq@1.20.2 for this package, which
+# its supply-chain trust policy then (correctly) rejects: 1.20.2 was published
+# manually with no provenance, where 1.20.0 had a trusted-publisher
+# attestation. npm resolves the same range to fastq@1.20.3, which restored the
+# attestation — so this setting gets us the *more* trusted build.
+#
+# Deliberately NOT `npm.shell_out = true` and NOT a `trust_policy_excludes`
+# entry: shell_out disables the trust check wholesale, and an exclude would
+# pin us to the unattested 1.20.2 while a trusted 1.20.3 exists.
+npm.package_manager = "npm"

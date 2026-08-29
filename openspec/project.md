@@ -140,6 +140,24 @@ mirrors as symlinks rather than separate copies so the instructions cannot drift
 
 Each command runs inside its own repo, not a shared root.
 
+**Toolchains come from each repo's `mise.toml`.** Every repo declares the
+language runtimes it builds with — at exact versions, never `latest`, a channel,
+or a bare major — and entering the directory selects them. Two of these repos
+need *different* JDKs (`azula-app` 21, `iroh-kmp` 17), so this is what keeps
+them from fighting; do not set `JAVA_HOME` by hand. A fresh clone needs
+[mise](https://mise.jdx.dev) installed, then a one-time `mise trust` in each
+repo, then `mise install`. Without mise, read the pins out of `mise.toml` and
+install them yourself — it is plain TOML naming exact versions.
+
+CI reads those same files via `jdx/mise-action`, so a version is declared once
+and a bump touches one file. Never restate a tool version in a workflow.
+
+mise owns language runtimes only. Platform SDKs stay host-provided: the Android
+SDK and NDK (via `ANDROID_HOME`), Xcode, and Docker for `cross` builds. A tool's
+absence from `mise.toml` is deliberate, not an oversight. mise also does not
+manage rustup *targets* — cross-compile targets need an explicit
+`rustup target add`. See [`specs/toolchain/`](specs/toolchain/).
+
 - Kotlin (`azula-app/`, Amper wrapper): `./kotlin build -m jvm-app`,
   `./check -m shared`. Run from the `azula-app/` root (both wrappers are here).
   The wrapper downloads its toolchain + deps, so builds need network — disable
@@ -168,10 +186,10 @@ Each command runs inside its own repo, not a shared root.
   `openspec/specs/testing/design.md`, "Known flakes".
 - Rust (`azula-cli/`): `cargo build`.
 - Worker (`azula-site/`): `npm install && npm run typecheck`.
-- iroh SDK (`iroh-kmp/`): `./gradlew publishToMavenLocal` — needs **JDK 17**
-  (AGP 8.7; e.g. `JAVA_HOME=…/zulu-17…`), `ANDROID_HOME` pointing at the SDK, the
-  Android NDK r28+, and Rust with the Android/iOS targets. See
-  `openspec/specs/iroh-kmp/design.md`.
+- iroh SDK (`iroh-kmp/`): `./gradlew publishToMavenLocal` — the repo's
+  `mise.toml` supplies **JDK 17** (AGP 8.7) and Rust; you additionally need
+  `ANDROID_HOME` pointing at the SDK, the Android NDK r28+, and the Rust
+  Android/iOS targets added. See `openspec/specs/iroh-kmp/design.md`.
 
   **`publishToMavenLocal` does not feed azula-app.** Amper resolves
   `app.azula.iroh:iroh-kmp` from Maven Central only — it never consults `~/.m2`
@@ -259,6 +277,13 @@ changing the page first, then the derived copies in §13.
 
 - Custom fonts fall back to system families until `.ttf` are added to
   `azula-app/shared/composeResources/font/`.
+- **Pin every GitHub Action by full commit SHA, with its release tag as a
+  trailing comment** — `uses: owner/action@<40-char-sha> # vX.Y.Z`. Both halves
+  are required: a tag is mutable and can be repointed at new code by whoever
+  owns the action, so only the SHA actually pins; the comment is what makes the
+  pin reviewable, since a bare SHA tells a reader nothing about how stale it is.
+  A tag-only reference (`@v4`, `@stable`) is not pinned and should be fixed when
+  touched.
 - A user-observable change to azula-app updates `azula-app/CHANGELOG.md` under
   `## [Unreleased]` **in the same commit** — both tiers: the `### Store notes`
   block (shipped verbatim to Play/TestFlight/App Store, under 500 bytes) and the
