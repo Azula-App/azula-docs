@@ -51,7 +51,7 @@
 
 ## 5. `iroh-kmp`
 
-- [ ] 5.1 Add `iroh-kmp/mise.toml` pinning `java = "temurin-17.0.20+8"` and
+- [x] 5.1 Add `iroh-kmp/mise.toml` pinning `java = "temurin-17.0.20+8"` and
       `rust = "1.98.0"` — verify `./gradlew publishToMavenLocal` succeeds with
       `ANDROID_HOME` set and **no** `JAVA_HOME` set by hand
 - [x] 5.2 Replace `setup-java` and `dtolnay/rust-toolchain` in `ci.yml` with
@@ -86,7 +86,7 @@
       toolchain path. NOTE: no existing tag contains `mise.toml`, so this can
       only verify the new guard fails loudly (design D8) rather than drifting
       silently; full validation lands on the first real release after this
-- [ ] 7.3 Dry-run `iroh-kmp`'s publish path far enough to prove the JDK 17 and
+- [x] 7.3 Dry-run `iroh-kmp`'s publish path far enough to prove the JDK 17 and
       Rust targets resolve on `macos-latest` — verify without releasing to
       Maven Central
 - [x] 7.4 Grep every workflow across all repos for tag-only action references —
