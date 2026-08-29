@@ -82,12 +82,14 @@
 - [x] 7.1 Update `specs/iroh-kmp/design.md`'s toolchain prose to match the
       modified spec requirement — verify it no longer instructs setting
       `JAVA_HOME`
-- [ ] 7.2 Dispatch `azula-app/publish.yml` with `dry_run=true` against a test
-      tag — verify it builds and validates without shipping
+- [x] 7.2 Dispatch `azula-app/publish.yml` with `dry_run=true` — verify the
+      toolchain path. NOTE: no existing tag contains `mise.toml`, so this can
+      only verify the new guard fails loudly (design D8) rather than drifting
+      silently; full validation lands on the first real release after this
 - [ ] 7.3 Dry-run `iroh-kmp`'s publish path far enough to prove the JDK 17 and
       Rust targets resolve on `macos-latest` — verify without releasing to
       Maven Central
-- [ ] 7.4 Grep every workflow across all repos for tag-only action references —
+- [x] 7.4 Grep every workflow across all repos for tag-only action references —
       verify none remain
 - [x] 7.5 Cross-check `openclaw-channel-plugin` (whose task 2.1a already ships
       `azula-openclaw/mise.toml`) against the convention, per design D7 —

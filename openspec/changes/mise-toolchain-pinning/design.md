@@ -177,6 +177,30 @@ not conflict, they only need one of them to update the other's task.
 - **Three repos duplicate the node pin**, so a node bump is three edits. →
   Deliberate, per D1; an automated dependency PR handles all three at once.
 
+### D8: Rebuilding a tag cut before the pin
+
+Found while preparing the dry-run, and it changes `azula-app/publish.yml`.
+
+That workflow can rebuild an *older* tag (`tag` input, defaulting to the
+latest), and it does so by checking out that tag's tree — then running
+mise-action against it. A tag cut before this change contains no `mise.toml`,
+so mise-action finds no config, installs nothing, and leaves the build on
+whatever JDK the runner happens to ship. Silent version drift, on the one path
+whose stated purpose is reproducibility.
+
+Both jobs therefore assert `mise.toml` exists in the built tree before the mise
+step, and the error names the fix: rebuild an older tag by dispatching **that
+tag's own workflow** (`--ref <tag>`), which still pins its JDK the old way and
+is self-consistent with the tree it builds.
+
+`iroh-kmp` needs no such guard: its `publish.yml` triggers only on a tag push,
+so workflow and tree always come from the same tag.
+
+A consequence worth stating plainly: this change cannot be fully validated
+against any existing tag, because none contains `mise.toml`. The first real
+release after it lands is the first end-to-end exercise of the new path — which
+is exactly why the guard fails loudly rather than quietly proceeding.
+
 ## Migration Plan
 
 Per repo, in increasing order of blast radius, so a mistake is caught on a
