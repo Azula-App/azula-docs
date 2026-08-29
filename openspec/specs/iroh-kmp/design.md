@@ -98,12 +98,19 @@ link fails with `Undefined symbols (_SC*)`.
 
 ## Build & publish
 
-Requires Android NDK r28+, Rust + the Android/iOS targets, and **JDK 17** (AGP 8.7).
+Requires Android NDK r28+, Rust + the Android/iOS targets, and **JDK 17** (AGP
+8.7). The JDK and Rust come from this repo's `mise.toml`, so entering the
+directory selects them — notably a *different* JDK from azula-app's 21, which
+is why neither repo needs `JAVA_HOME` set by hand. The NDK stays
+host-provided, and the Rust targets are added with `rustup target add` (mise
+manages toolchains, not targets).
 
 ```bash
 cd iroh-kmp
-export JAVA_HOME=/Library/Java/JavaVirtualMachines/zulu-17.54.21/Contents/Home
+mise install                       # first time only, plus `mise trust`
 export ANDROID_HOME=$HOME/Library/Android/sdk
+rustup target add aarch64-linux-android armv7-linux-androideabi \
+  x86_64-linux-android aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
 ./gradlew publishToMavenLocal      # → ~/.m2/repository/app/azula/iroh/
 ```
 

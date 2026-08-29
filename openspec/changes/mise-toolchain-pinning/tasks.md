@@ -24,28 +24,28 @@
 
 ## 3. `azula-site` (CI only, no release)
 
-- [ ] 3.1 Add `azula-site/mise.toml` pinning `node = "22.23.2"` — verify
+- [x] 3.1 Add `azula-site/mise.toml` pinning `node = "22.23.2"` — verify
       `npm install && npm run typecheck && npm test && npm run build` passes
       locally under it
-- [ ] 3.2 Replace `setup-node` in `ci.yml` with SHA-pinned
+- [x] 3.2 Replace `setup-node` in `ci.yml` with SHA-pinned
       `jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0`,
       preserving npm dependency caching as its own step — verify a CI run is
       green and its duration is not materially worse than the previous run
-- [ ] 3.3 Confirm `node scripts/check-build.mjs` still passes under node 22.23.2
+- [x] 3.3 Confirm `node scripts/check-build.mjs` still passes under node 22.23.2
       — verify the build-output checks (Markdown twins, no third-party
       resources) still hold
 
 ## 4. `azula-cli`
 
-- [ ] 4.1 Add `azula-cli/mise.toml` pinning `rust = "1.98.0"` and
+- [x] 4.1 Add `azula-cli/mise.toml` pinning `rust = "1.98.0"` and
       `node = "24.20.0"` — verify `cargo build` succeeds locally under it
-- [ ] 4.2 Replace both `dtolnay/rust-toolchain@stable` references and
+- [x] 4.2 Replace both `dtolnay/rust-toolchain@stable` references and
       `actions/setup-node@v4` in `release.yml` with the SHA-pinned mise action
       — verify no tag-only action reference remains in the file
-- [ ] 4.3 Add an explicit `rustup target add ${{ matrix.target }}` step in
+- [x] 4.3 Add an explicit `rustup target add ${{ matrix.target }}` step in
       place of the removed `targets:` input — verify each matrix leg still
       produces its `azula-<version>-<target>.tar.gz`
-- [ ] 4.4 Confirm the `cross`-based `aarch64-unknown-linux-musl` leg is
+- [x] 4.4 Confirm the `cross`-based `aarch64-unknown-linux-musl` leg is
       unaffected, since it builds inside Docker rather than the host toolchain
       — verify that artifact is still produced and is still statically linked
 
@@ -54,30 +54,32 @@
 - [ ] 5.1 Add `iroh-kmp/mise.toml` pinning `java = "temurin-17.0.20+8"` and
       `rust = "1.98.0"` — verify `./gradlew publishToMavenLocal` succeeds with
       `ANDROID_HOME` set and **no** `JAVA_HOME` set by hand
-- [ ] 5.2 Replace `setup-java` and `dtolnay/rust-toolchain` in `ci.yml` with
+- [x] 5.2 Replace `setup-java` and `dtolnay/rust-toolchain` in `ci.yml` with
       the SHA-pinned mise action — verify `cargo test` and
       `cargo clippy -D warnings` still pass on Linux
-- [ ] 5.3 Do the same in `publish.yml`, adding an explicit `rustup target add`
-      for the six Android and iOS targets — verify the target list matches the
-      one removed from the action input, exactly
-- [ ] 5.4 Verify the two-JDK case end to end: from a single shell, `cd` between
+- [x] 5.3 Do the same in `publish.yml` **and `docs.yml`** (the latter was
+      missed by this breakdown and restates the same JDK + Rust), adding an
+      explicit `rustup target add` for the six Android and iOS targets —
+      verify the target list matches the one removed from the action input,
+      exactly
+- [x] 5.4 Verify the two-JDK case end to end: from a single shell, `cd` between
       `iroh-kmp/` and `azula-app/` and confirm `java -version` reports 17 and
       21 respectively with no manual environment change
 
 ## 6. `azula-app` (largest blast radius)
 
-- [ ] 6.1 Add `azula-app/mise.toml` pinning `java = "temurin-21.0.12+8.0.LTS"`
+- [x] 6.1 Add `azula-app/mise.toml` pinning `java = "temurin-21.0.12+8.0.LTS"`
       — verify `./kotlin check` passes locally under it
-- [ ] 6.2 Replace both `setup-java` steps in `publish.yml` (the Android job and
+- [x] 6.2 Replace both `setup-java` steps in `publish.yml` (the Android job and
       the macOS/iOS job) with the SHA-pinned mise action, leaving NDK, Xcode
       and signing-key steps untouched — verify the workflow file's non-toolchain
       steps are byte-identical to before
-- [ ] 6.3 Confirm `release.yml` needs no change, since it only cuts tags and
+- [x] 6.3 Confirm `release.yml` needs no change, since it only cuts tags and
       freezes the changelog — verify by inspection that it invokes no toolchain
 
 ## 7. Spec and release verification
 
-- [ ] 7.1 Update `specs/iroh-kmp/design.md`'s toolchain prose to match the
+- [x] 7.1 Update `specs/iroh-kmp/design.md`'s toolchain prose to match the
       modified spec requirement — verify it no longer instructs setting
       `JAVA_HOME`
 - [ ] 7.2 Dispatch `azula-app/publish.yml` with `dry_run=true` against a test
@@ -87,7 +89,7 @@
       Maven Central
 - [ ] 7.4 Grep every workflow across all repos for tag-only action references —
       verify none remain
-- [ ] 7.5 Cross-check `openclaw-channel-plugin` (whose task 2.1a already ships
+- [x] 7.5 Cross-check `openclaw-channel-plugin` (whose task 2.1a already ships
       `azula-openclaw/mise.toml`) against the convention, per design D7 —
       verify its pin matches this change's node version and that nothing pins
       node outside mise
