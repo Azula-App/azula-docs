@@ -5,7 +5,9 @@ Defines the contract for `iroh-kmp`, the `app.azula.iroh` Kotlin Multiplatform
 SDK that wraps the `iroh` 1.0 Rust crate via UniFFI/Gobley, publishes to
 mavenLocal and Maven Central, and is consumed by azula-app in place of
 `computer.iroh:iroh`.
+
 ## Requirements
+
 ### Requirement: Package and artifact identity
 The SDK SHALL be published as `app.azula.iroh:iroh-kmp`, with its version
 sourced from `iroh-kmp/gradle.properties`'s `VERSION_NAME`, and generated
@@ -51,14 +53,24 @@ dispatch library so consumers need no manual jniLibs configuration.
 
 ### Requirement: Build and publish toolchain requirements
 Building and publishing the SDK SHALL require JDK 17, Android NDK r28+, and a
-Rust toolchain with the Android and iOS targets installed.
+Rust toolchain with the Android and iOS targets installed. The JDK and the Rust
+toolchain SHALL be declared in the repo's `mise.toml` per the `toolchain`
+capability, so entering the repo selects them; the Android NDK remains
+host-provided.
 
 #### Scenario: Publishing to mavenLocal
-- **WHEN** running `./gradlew publishToMavenLocal` from `iroh-kmp/` with
-  `JAVA_HOME` set to a JDK 17 install and `ANDROID_HOME` set
-- **THEN** the build SHALL succeed without a signing key present, publishing
-  the root KMP metadata plus per-target artifacts (`-android`, `-jvm`,
-  `-iosarm64`, `-iossimulatorarm64`, `-iosx64`) to `~/.m2/repository/app/azula/iroh/`
+- **WHEN** running `./gradlew publishToMavenLocal` from `iroh-kmp/` with the
+  repo's declared toolchain active and `ANDROID_HOME` set
+- **THEN** the build SHALL succeed without a signing key present, and without
+  `JAVA_HOME` being set by hand, publishing the root KMP metadata plus
+  per-target artifacts (`-android`, `-jvm`, `-iosarm64`, `-iossimulatorarm64`,
+  `-iosx64`) to `~/.m2/repository/app/azula/iroh/`
+
+#### Scenario: Sibling repo requiring a different JDK
+- **WHEN** a developer moves between `iroh-kmp/` and `azula-app/`, which
+  requires a different JDK
+- **THEN** each repo resolves to its own declared JDK with no manual
+  environment change between them
 
 ### Requirement: Maven Central publish is tag-driven and host-gated
 Publishing to Maven Central SHALL run only on a `v*` tag push, and SHALL run
@@ -138,4 +150,3 @@ The `-android` AAR SHALL ship consumer ProGuard/R8 keep rules covering JNA and t
 - **WHEN** the keep rules are applied
 - **THEN** they SHALL be scoped to JNA and the generated bindings, leaving the
   consuming app's own code subject to normal R8 shrinking and obfuscation
-
