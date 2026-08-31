@@ -2,29 +2,34 @@
 
 Sequenced first: the plugin cannot start without these (design D7).
 
-- [ ] 1.1 Add a structured inbox event type in `core` covering `message`,
+- [x] 1.1 Add a structured inbox event type in `core` covering `message`,
       `ui_event`, `file`, `connected`, `disconnected` with its source device,
       reusing `azula watch --json`'s existing event vocabulary rather than a
       parallel one — verify `cargo build` passes and the watch and event shapes
       serialize identically for the same inbox entry
-- [ ] 1.2 Add a `SessionCore` accessor that drains the inbox structurally,
+- [x] 1.2 Add a `SessionCore` accessor that drains the inbox structurally,
       supporting both immediate and timeout-bounded modes over the same queue
       backing `get_messages`/`wait_for_reply` — verify a unit test shows an
       event drained structurally is not returned again by `get_messages`
-- [ ] 1.3 Expose `get_events` in `bridge/tools.rs` as a thin wrapper over 1.2,
+- [x] 1.3 Expose `get_events` in `bridge/tools.rs` as a thin wrapper over 1.2,
       with an optional `timeout_s` — verify a test asserts the waiting mode
       returns as soon as an event arrives and returns empty (not an error) on
       timeout
-- [ ] 1.4 Expose `set_typing(device, on)` emitting a bare `thinking` frame,
+- [x] 1.4 Expose `set_typing(device, on)` emitting a bare `thinking` frame,
       erroring immediately when the device is unreachable rather than queuing —
       verify a test covers on, off, and the unreachable-device error, and that
       nothing is written to the relay or local mailbox
-- [ ] 1.5 Update `specs/mcp-bridge/design.md`'s tool catalog table and the
+- [x] 1.5 Update `specs/mcp-bridge/design.md`'s tool catalog table and the
       module doc comment at the top of `bridge/tools.rs` to list both new tools
       — verify the table row count matches the registered tool count
-- [ ] 1.6 Verify a real bridge end to end: run `azula mcp`, call `get_events`
-      with a timeout, tap an A2UI surface on a paired device, and confirm the
-      tap payload arrives verbatim rather than as a rendered `ui-event:` line
+- [ ] 1.6 Verify a real bridge end to end. DONE so far, over a live `azula mcp`
+      via JSON-RPC: `get_events` with `timeout_s` returns `[]` rather than an
+      error, and both new tools reject an unknown device. STILL PENDING: the
+      on-device half — tap an A2UI surface on a paired phone and confirm the
+      payload arrives verbatim rather than as a rendered `ui-event:` line.
+      Covered at the core level by
+      `get_events_reports_taps_and_lookalike_text_distinctly`, but not yet
+      against real hardware
 
 ## 2. `azula-openclaw` repo scaffold
 
