@@ -143,7 +143,9 @@ Sequenced first: the plugin cannot start without these (design D7).
       its asking message, surface cleanup, and an attachment out (arriving as
       `from-openclaw.txt`, 53 B). STILL PENDING: a file sent back FROM the
       phone — the only leg of the six not exercised, because it needs the
-      phone's own file picker rather than anything the plugin drives
+      phone's own file picker rather than anything the plugin drives.
+      `scripts/e2e-inbound-file.mjs` covers it: it pairs and waits, so the only
+      manual step is tapping the paperclip and choosing a file
 - [x] 7.2 Restart the gateway and confirm the phone shows the same conversation
       continuing rather than a second one — VERIFIED ON HARDWARE. The bridge
       was stopped and restarted mid-run against the connected phone: the
