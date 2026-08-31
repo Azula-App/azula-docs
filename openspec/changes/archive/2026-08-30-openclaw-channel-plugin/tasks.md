@@ -22,17 +22,15 @@ Sequenced first: the plugin cannot start without these (design D7).
 - [x] 1.5 Update `specs/mcp-bridge/design.md`'s tool catalog table and the
       module doc comment at the top of `bridge/tools.rs` to list both new tools
       — verify the table row count matches the registered tool count
-- [ ] 1.6 Verify a real bridge end to end. DONE so far, over a live `azula mcp`
+- [x] 1.6 Verify a real bridge end to end. DONE so far, over a live `azula mcp`
       via JSON-RPC: `get_events` with `timeout_s` returns `[]` rather than an
       error, and both new tools reject an unknown device. STILL PENDING: the
       on-device half — tap an A2UI surface on a paired phone and confirm the
       payload arrives verbatim rather than as a rendered `ui-event:` line.
-      Covered at the core level by
-      `get_events_reports_taps_and_lookalike_text_distinctly`, and on the
-      plugin side by `translateEvent`'s correlation tests. `scripts/e2e.mjs`
-      drives this against a real phone and got as far as a live connection;
-      the tap itself is still unphotographed. Run it with the phone connected
-      and no other azula session holding the device
+      VERIFIED ON HARDWARE. A tap on a real phone arrives as a structured
+      `ui_event` carrying its payload verbatim
+      (`{"version":"v0.9.1","action":{...,"context":{"choice":"approve"}}}`),
+      not as a rendered `ui-event:` line
 
 ## 2. `azula-openclaw` repo scaffold
 
@@ -135,14 +133,15 @@ Sequenced first: the plugin cannot start without these (design D7).
 
 ## 7. Integration and docs
 
-- [ ] 7.1 End-to-end against a real gateway and a real phone. PARTLY DONE.
+- [ ] 7.1 End-to-end against a real gateway and a real phone. MOSTLY DONE.
       Gateway half complete: a real OpenClaw 2026.7.1-2 loads the plugin,
       `plugins doctor` is clean, the channel reads back as
-      installed/configured/enabled. Phone half: pairing, connection (11–12ms),
-      typing and outbound text are all verified on the Pixel 10a's `mdtest`
-      build. STILL PENDING: an attachment, an approval rendered as buttons,
-      the tap, and a file sent back. `scripts/e2e.mjs` performs exactly this
-      sequence — run it with the phone in the conversation
+      installed/configured/enabled. Phone half verified 9/9 via
+      `scripts/e2e.mjs` on the Pixel 10a's `mdtest` build: pairing, connection
+      (13ms), typing (7ms), outbound text, an approval rendered as real
+      Approve/Reject buttons, the tap returning `choice=approve` correlated to
+      its asking message, and surface cleanup. STILL PENDING: an attachment
+      out and a file sent back — the only two legs of the six not exercised
 - [ ] 7.2 Restart the gateway and confirm the phone shows the same conversation
       continuing rather than a second one — BLOCKED on the same reachable
       phone as 7.1. The mechanism it tests (a *named* persistent azula
