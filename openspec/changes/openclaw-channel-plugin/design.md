@@ -151,18 +151,28 @@ This means there is exactly one pairing act to reason about, and revoking
 access is `azula devices` forget — not a second list that can disagree with the
 first.
 
-### D6: At-most-once inbound via OpenClaw's durable ingress
+### D6: At-most-once inbound via the SDK's claimable dedupe
 
 The drain is destructive, so a crash between "drained from azula" and
-"dispatched to the agent" loses events. OpenClaw provides for exactly this:
-`createChannelIngressMonitor` enqueues raw transport envelopes at a single
-chokepoint, gates the transport ack on a durable append, and marks completion
-after dispatch adoption.
+"dispatched to the agent" loses events, and a crash after dispatching but
+before recording replays them.
 
-The plugin appends durably *before* treating a drained batch as consumed, and
-uses `createIngressEffectOnce` for the non-idempotent side effects (surface
-deletion, config writes). Transport classification is "awaited polling" with
-standard tombstone retention.
+**Corrected during implementation.** This decision originally named
+`createChannelIngressMonitor` and `createIngressEffectOnce`, from the plugin
+docs. Neither exists in the shipped SDK (2026.7.1-2) — they appear in no `.d.ts`
+and in no bundle. What the SDK *does* provide is
+`createClaimableDedupe` (`plugin-sdk/persistent-dedupe`), whose
+claim/commit/release contract is exactly the shape this property needs.
+
+So each inbound item is claimed before dispatch and committed after. A claim
+reporting a duplicate is the replay case and is skipped; a dispatch that throws
+*releases* its claim rather than committing, because an item that never reached
+the agent has not been delivered and pretending otherwise loses it for good.
+Where the claim result's shape is unrecognised, it is treated as not-a-duplicate:
+delivering twice is visible and recoverable, dropping silently is neither.
+
+Presence events are not claimed at all — they carry no delivery guarantee and
+claiming them would only grow the dedupe store.
 
 ### D7: The plugin declares a minimum azula version and checks it at startup
 

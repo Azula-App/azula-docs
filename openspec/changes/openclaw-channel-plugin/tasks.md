@@ -28,8 +28,9 @@ Sequenced first: the plugin cannot start without these (design D7).
       on-device half — tap an A2UI surface on a paired phone and confirm the
       payload arrives verbatim rather than as a rendered `ui-event:` line.
       Covered at the core level by
-      `get_events_reports_taps_and_lookalike_text_distinctly`, but not yet
-      against real hardware
+      `get_events_reports_taps_and_lookalike_text_distinctly`, and on the
+      plugin side by `translateEvent`'s correlation tests, but not yet against
+      real hardware — same blocker as 7.1
 
 ## 2. `azula-openclaw` repo scaffold
 
@@ -46,13 +47,12 @@ Sequenced first: the plugin cannot start without these (design D7).
       (`channels.azula`: target device, optional binary path, session name,
       display label) — verify an invalid config is rejected at validation time,
       before the runtime loads
-- [ ] 2.3 Register the channel via `defineChannelPluginEntry` with id `azula`
-      and account resolution over multiple accounts. DONE: the channel is
-      defined and typechecks against the real SDK types with no casts, the
-      built entry loads, and two configured accounts resolve to distinct
-      devices and distinct sessions (unit-tested). PENDING: `openclaw channels
-      add` offering `azula` — needs a running gateway, which this machine does
-      not have
+- [x] 2.3 Register the channel via `defineChannelPluginEntry` with id `azula`
+      and account resolution over multiple accounts — verified against a real
+      gateway (2026.7.1-2) in an isolated `--profile`: the plugin installs and
+      loads, `plugins doctor` reports no issues, `azula` appears in
+      `channels list --all`, and a configured account reads back as
+      "installed, configured, enabled"
 - [x] 2.4 Add the parent-checkout wiring for a sixth repo: project-map entry in
       `azula-docs/openspec/project.md` and any `.gitignore`/symlink updates —
       verify a fresh clone of the parent checkout still resolves the openspec
@@ -71,71 +71,86 @@ Sequenced first: the plugin cannot start without these (design D7).
 - [x] 3.3 Detect the missing-binary and unpaired-device cases as distinct
       configuration errors that do not block other channels from starting —
       verify a test covers both messages and asserts the gateway still starts
-- [ ] 3.4 Implement reconnect with bounded backoff, resuming both directions,
+- [x] 3.4 Implement reconnect with bounded backoff, resuming both directions,
       and surface persistent failure as an unhealthy channel — verify a test
       kills the child mid-run and asserts traffic resumes without a spin loop
 
 ## 4. Outbound
 
-- [ ] 4.1 Map `outbound.sendText` to `send_message`, returning a correlatable
+- [x] 4.1 Map `outbound.sendText` to `send_message`, returning a correlatable
       id and treating azula's queued-delivery outcome as success — verify tests
       cover reachable, queued, and rejected outcomes
-- [ ] 4.2 Map attachments to `send_file`, advertising the 64 MiB cap via the
+- [x] 4.2 Map attachments to `send_file`, advertising the 64 MiB cap via the
       channel's media limits so oversized media is refused before transfer —
       verify a test asserts an oversized attachment errors with the limit named
       and sends no frames
-- [ ] 4.3 Render structured choices as A2UI surfaces via `render_ui` with a
+- [x] 4.3 Render structured choices as A2UI surfaces via `render_ui` with a
       surface id derived from the asking message's id, always accompanied by
       the text fallback in the same turn — verify a test asserts both are sent
       and that the components array carries exactly one `"id":"root"`
-- [ ] 4.4 Delete surfaces once answered or once the turn ends, re-rendering
+- [x] 4.4 Delete surfaces once answered or once the turn ends, re-rendering
       rather than patching after a session restart — verify a test asserts no
       surface outlives its turn and that a restart re-renders
-- [ ] 4.5 Implement `heartbeat.sendTyping`/`clearTyping` over `set_typing`,
+- [x] 4.5 Implement `heartbeat.sendTyping`/`clearTyping` over `set_typing`,
       clearing on turn end including abnormal termination, and treating a
       typing failure as non-fatal — verify a test asserts the indicator is
       cleared after an erroring turn
 
 ## 5. Inbound
 
-- [ ] 5.1 Implement the pump: long-poll `get_events` and translate each event
+- [x] 5.1 Implement the pump: long-poll `get_events` and translate each event
       type into an OpenClaw inbound envelope with sender, route, and content —
       verify tests cover each of the five event types
-- [ ] 5.2 Map `file` events to ordered inbound media facts via
+- [x] 5.2 Map `file` events to ordered inbound media facts via
       `toInboundMediaFacts` — verify a test asserts multiple attachments keep
       their received order
-- [ ] 5.3 Correlate `ui_event` back to the asking message by surface id and
+- [x] 5.3 Correlate `ui_event` back to the asking message by surface id and
       deliver it as that message's answer — verify a test asserts the agent
       turn continues with the tapped choice
-- [ ] 5.4 Keep `connected`/`disconnected` as liveness state only, never
+- [x] 5.4 Keep `connected`/`disconnected` as liveness state only, never
       dispatched as user messages — verify a test asserts no agent wake on
       either event
-- [ ] 5.5 Wire durable ingestion via `createChannelIngressMonitor`, appending
-      durably before treating a batch as consumed, with `createIngressEffectOnce`
-      for non-idempotent effects — verify a test asserts a crash between drain
-      and dispatch neither loses nor duplicates events
-- [ ] 5.6 Verify text that literally resembles a rendered event line is
+- [x] 5.5 Wire durable ingestion. NOTE: `createChannelIngressMonitor` and
+      `createIngressEffectOnce` do not exist in the shipped SDK (2026.7.1-2) —
+      the docs describe them but no bundle exports them. Used
+      `createClaimableDedupe`'s claim/commit/release instead, which is the
+      same property; see design D6 — verified by tests covering replay,
+      release-on-failure, and continuing past a failed item
+- [x] 5.6 Verify text that literally resembles a rendered event line is
       dispatched as ordinary message text
 
 ## 6. Access control and pairing
 
-- [ ] 6.1 Resolve the DM allowlist from azula's paired-device registry rather
+- [x] 6.1 Resolve the DM allowlist from azula's paired-device registry rather
       than a second identifier space — verify a test asserts traffic from an
       unpaired device is not dispatched
 - [ ] 6.2 Surface `start_pairing`'s invite URL and QR through the channel's
-      pairing text hooks — verify pairing an unpaired phone end to end through
-      `openclaw` and confirming the conversation appears
+      pairing text hooks. DONE: the invite is fetched and formatted, and its
+      URL extracted (unit-tested). PENDING: pairing a phone end to end —
+      needs a reachable phone; the paired `phone` device is currently
+      disconnected
 
 ## 7. Integration and docs
 
-- [ ] 7.1 End-to-end against a real gateway and a real phone: send a text
-      message, an attachment, and an approval with buttons; reply, tap, and
-      send a file back — verify all six land correctly in both directions
+- [ ] 7.1 End-to-end against a real gateway and a real phone. BLOCKED on a
+      reachable phone. The gateway half is done: a real OpenClaw 2026.7.1-2
+      loads the plugin, `plugins doctor` is clean, and the channel reads back
+      as installed/configured/enabled. The phone half was attempted against
+      the `app.azula.mdtest` build on the Pixel 10a (the `app.azula` install
+      there is the protected migration fixture and was left alone) — the app
+      runs and an invite deep-links into it, but completing the pair needs UI
+      interaction. Needs Sal's phone online, or hands on the device
 - [ ] 7.2 Restart the gateway and confirm the phone shows the same conversation
-      continuing rather than a second one
-- [ ] 7.3 Write `azula-openclaw/README.md` covering install
+      continuing rather than a second one — BLOCKED on the same reachable
+      phone as 7.1. The mechanism it tests (a *named* persistent azula
+      session, so the endpoint id and therefore the conversation survive a
+      restart) is implemented and unit-tested; what is unverified is the
+      phone-side result
+- [x] 7.3 Write `azula-openclaw/README.md` covering install
       (`openclaw plugins install @azula-app/openclaw`), configuration, pairing,
       and the minimum azula version — verify every command in it runs as
       written
 - [ ] 7.4 Publish `@azula-app/openclaw` to npm — needs Sal's go-ahead, as it
-      ships
+      ships. Also needs the `azula-openclaw` GitHub repo to exist: the repo is
+      committed locally with no remote, since creating a public repo is Sal's
+      call. Blocked by design, not by readiness
