@@ -133,21 +133,24 @@ Sequenced first: the plugin cannot start without these (design D7).
 
 ## 7. Integration and docs
 
-- [ ] 7.1 End-to-end against a real gateway and a real phone. MOSTLY DONE.
+- [ ] 7.1 End-to-end against a real gateway and a real phone. ONE LEG LEFT.
       Gateway half complete: a real OpenClaw 2026.7.1-2 loads the plugin,
       `plugins doctor` is clean, the channel reads back as
       installed/configured/enabled. Phone half verified 9/9 via
       `scripts/e2e.mjs` on the Pixel 10a's `mdtest` build: pairing, connection
       (13ms), typing (7ms), outbound text, an approval rendered as real
       Approve/Reject buttons, the tap returning `choice=approve` correlated to
-      its asking message, and surface cleanup. STILL PENDING: an attachment
-      out and a file sent back — the only two legs of the six not exercised
-- [ ] 7.2 Restart the gateway and confirm the phone shows the same conversation
-      continuing rather than a second one — BLOCKED on the same reachable
-      phone as 7.1. The mechanism it tests (a *named* persistent azula
-      session, so the endpoint id and therefore the conversation survive a
-      restart) is implemented and unit-tested; what is unverified is the
-      phone-side result
+      its asking message, surface cleanup, and an attachment out (arriving as
+      `from-openclaw.txt`, 53 B). STILL PENDING: a file sent back FROM the
+      phone — the only leg of the six not exercised, because it needs the
+      phone's own file picker rather than anything the plugin drives
+- [x] 7.2 Restart the gateway and confirm the phone shows the same conversation
+      continuing rather than a second one — VERIFIED ON HARDWARE. The bridge
+      was stopped and restarted mid-run against the connected phone: the
+      device count was unchanged (3 before, 3 after), the conversation
+      continued rather than forking, and a message sent afterwards arrived in
+      it. This is what the *named* persistent session buys — a stable endpoint
+      id, and therefore a stable conversation
 - [x] 7.3 Write `azula-openclaw/README.md` covering install
       (`openclaw plugins install @azula-app/openclaw`), configuration, pairing,
       and the minimum azula version — verify every command in it runs as
