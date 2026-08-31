@@ -87,6 +87,15 @@ versions, and deploys on its own.
   published version instead of `computer.iroh:iroh`; this is what makes real iroh
   work on Android. See
   [`openspec/specs/iroh-kmp/design.md`](specs/iroh-kmp/design.md).
+- `azula-openclaw/` — an [OpenClaw](https://docs.openclaw.ai) **channel
+  plugin** (npm `@azula-app/openclaw`, TypeScript/Node), letting a self-hosted
+  OpenClaw gateway reach the phone through azula instead of a third-party
+  messenger. It owns one long-lived `azula mcp` stdio session per account and
+  drives it in both directions: `send_message`/`send_file`/`render_ui`
+  outbound, `get_events` inbound. Not loaded by azula itself — the gateway
+  loads it. See
+  [`openspec/specs/openclaw-channel/`](specs/openclaw-channel/) once the
+  change lands, and `openspec/changes/openclaw-channel-plugin/` until then.
 - `azula-docs/` — cross-repo documentation and this working agreement. Holds the
   shared CLAUDE/AGENTS files, the OpenSpec tree (`openspec/`), and the shared
   agent skills (`.claude/skills/`).

@@ -33,39 +33,42 @@ Sequenced first: the plugin cannot start without these (design D7).
 
 ## 2. `azula-openclaw` repo scaffold
 
-- [ ] 2.1 Create the `azula-openclaw/` sibling repo with TypeScript and the
+- [x] 2.1 Create the `azula-openclaw/` sibling repo with TypeScript and the
       OpenClaw package layout (`package.json` with `openclaw.channel` metadata,
       `openclaw.plugin.json`, `index.ts`, `setup-entry.ts`, `src/`) — verify
       `npm install && npm run typecheck` passes
-- [ ] 2.1a Pin the toolchain in `azula-openclaw/mise.toml`
+- [x] 2.1a Pin the toolchain in `azula-openclaw/mise.toml`
       (`node = "22.23.2"`, satisfying OpenClaw's 22.22.3+ floor) rather than in
       a `package.json` `engines` field, per the `toolchain` capability from
       `mise-toolchain-pinning` — verify CI reads the version from that file and
       no workflow restates it
-- [ ] 2.2 Declare the channel config schema in `openclaw.plugin.json`
+- [x] 2.2 Declare the channel config schema in `openclaw.plugin.json`
       (`channels.azula`: target device, optional binary path, session name,
       display label) — verify an invalid config is rejected at validation time,
       before the runtime loads
 - [ ] 2.3 Register the channel via `defineChannelPluginEntry` with id `azula`
-      and account resolution over multiple accounts — verify
-      `openclaw channels add` offers `azula` and two configured accounts
-      resolve to distinct devices
-- [ ] 2.4 Add the parent-checkout wiring for a sixth repo: project-map entry in
+      and account resolution over multiple accounts. DONE: the channel is
+      defined and typechecks against the real SDK types with no casts, the
+      built entry loads, and two configured accounts resolve to distinct
+      devices and distinct sessions (unit-tested). PENDING: `openclaw channels
+      add` offering `azula` — needs a running gateway, which this machine does
+      not have
+- [x] 2.4 Add the parent-checkout wiring for a sixth repo: project-map entry in
       `azula-docs/openspec/project.md` and any `.gitignore`/symlink updates —
       verify a fresh clone of the parent checkout still resolves the openspec
       tree
 
 ## 3. The azula bridge client
 
-- [ ] 3.1 Implement an MCP stdio client that spawns
+- [x] 3.1 Implement an MCP stdio client that spawns
       `azula mcp --session <name> --name <label>` and owns its lifetime —
       verify a test asserts the child is spawned once per account and reaped on
       channel shutdown
-- [ ] 3.2 Probe the advertised tool list at startup and fail with a
+- [x] 3.2 Probe the advertised tool list at startup and fail with a
       configuration error naming the required azula version when `get_events`
       or `set_typing` is missing — verify a test against a stub server lacking
       the tools produces that error and not a per-message failure
-- [ ] 3.3 Detect the missing-binary and unpaired-device cases as distinct
+- [x] 3.3 Detect the missing-binary and unpaired-device cases as distinct
       configuration errors that do not block other channels from starting —
       verify a test covers both messages and asserts the gateway still starts
 - [ ] 3.4 Implement reconnect with bounded backoff, resuming both directions,
