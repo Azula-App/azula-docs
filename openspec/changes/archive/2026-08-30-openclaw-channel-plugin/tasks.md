@@ -133,7 +133,7 @@ Sequenced first: the plugin cannot start without these (design D7).
 
 ## 7. Integration and docs
 
-- [ ] 7.1 End-to-end against a real gateway and a real phone. ONE LEG LEFT.
+- [x] 7.1 End-to-end against a real gateway and a real phone. ALL SIX LEGS DONE.
       Gateway half complete: a real OpenClaw 2026.7.1-2 loads the plugin,
       `plugins doctor` is clean, the channel reads back as
       installed/configured/enabled. Phone half verified 9/9 via
@@ -141,11 +141,12 @@ Sequenced first: the plugin cannot start without these (design D7).
       (13ms), typing (7ms), outbound text, an approval rendered as real
       Approve/Reject buttons, the tap returning `choice=approve` correlated to
       its asking message, surface cleanup, and an attachment out (arriving as
-      `from-openclaw.txt`, 53 B). STILL PENDING: a file sent back FROM the
-      phone — the only leg of the six not exercised, because it needs the
-      phone's own file picker rather than anything the plugin drives.
-      `scripts/e2e-inbound-file.mjs` covers it: it pairs and waits, so the only
-      manual step is tapping the paperclip and choosing a file
+      `from-openclaw.txt`, 53 B). The sixth leg — a file sent back FROM the
+      phone — is verified too, via `scripts/e2e-inbound-file.mjs` (5/5): the
+      paperclip and document picker were driven over adb, and the file arrived
+      as a structured `file` event with complete media facts
+      (`from-openclaw.txt`, `text/plain`, 53 B) that translated into a message
+      carrying them in order
 - [x] 7.2 Restart the gateway and confirm the phone shows the same conversation
       continuing rather than a second one — VERIFIED ON HARDWARE. The bridge
       was stopped and restarted mid-run against the connected phone: the
