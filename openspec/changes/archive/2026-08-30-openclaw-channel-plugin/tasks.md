@@ -29,8 +29,10 @@ Sequenced first: the plugin cannot start without these (design D7).
       payload arrives verbatim rather than as a rendered `ui-event:` line.
       Covered at the core level by
       `get_events_reports_taps_and_lookalike_text_distinctly`, and on the
-      plugin side by `translateEvent`'s correlation tests, but not yet against
-      real hardware — same blocker as 7.1
+      plugin side by `translateEvent`'s correlation tests. `scripts/e2e.mjs`
+      drives this against a real phone and got as far as a live connection;
+      the tap itself is still unphotographed. Run it with the phone connected
+      and no other azula session holding the device
 
 ## 2. `azula-openclaw` repo scaffold
 
@@ -124,22 +126,23 @@ Sequenced first: the plugin cannot start without these (design D7).
 - [x] 6.1 Resolve the DM allowlist from azula's paired-device registry rather
       than a second identifier space — verify a test asserts traffic from an
       unpaired device is not dispatched
-- [ ] 6.2 Surface `start_pairing`'s invite URL and QR through the channel's
-      pairing text hooks. DONE: the invite is fetched and formatted, and its
-      URL extracted (unit-tested). PENDING: pairing a phone end to end —
-      needs a reachable phone; the paired `phone` device is currently
-      disconnected
+- [x] 6.2 Surface `start_pairing`'s invite URL and QR through the channel's
+      pairing text hooks — VERIFIED ON HARDWARE. The plugin fetched its own
+      session invite, it was delivered to the Pixel 10a's `mdtest` build, and
+      the phone paired and connected: direct, 11–12ms. The typing indicator
+      round-tripped live in 12ms and outbound text reached the connected
+      device on the same run
 
 ## 7. Integration and docs
 
-- [ ] 7.1 End-to-end against a real gateway and a real phone. BLOCKED on a
-      reachable phone. The gateway half is done: a real OpenClaw 2026.7.1-2
-      loads the plugin, `plugins doctor` is clean, and the channel reads back
-      as installed/configured/enabled. The phone half was attempted against
-      the `app.azula.mdtest` build on the Pixel 10a (the `app.azula` install
-      there is the protected migration fixture and was left alone) — the app
-      runs and an invite deep-links into it, but completing the pair needs UI
-      interaction. Needs Sal's phone online, or hands on the device
+- [ ] 7.1 End-to-end against a real gateway and a real phone. PARTLY DONE.
+      Gateway half complete: a real OpenClaw 2026.7.1-2 loads the plugin,
+      `plugins doctor` is clean, the channel reads back as
+      installed/configured/enabled. Phone half: pairing, connection (11–12ms),
+      typing and outbound text are all verified on the Pixel 10a's `mdtest`
+      build. STILL PENDING: an attachment, an approval rendered as buttons,
+      the tap, and a file sent back. `scripts/e2e.mjs` performs exactly this
+      sequence — run it with the phone in the conversation
 - [ ] 7.2 Restart the gateway and confirm the phone shows the same conversation
       continuing rather than a second one — BLOCKED on the same reachable
       phone as 7.1. The mechanism it tests (a *named* persistent azula
