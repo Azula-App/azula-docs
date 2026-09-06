@@ -1,16 +1,18 @@
-# Moving to OpenClaw 2026.8.1
+# Moving to OpenClaw 2026.9.2
 
 ## Context
 
 See [proposal.md](proposal.md). The facts that shape this, all established by
 running against the real thing rather than reading release notes:
 
-- **There is no 2.0.** 249 published versions, all `2026.x.y`, no `2.x`.
-  `latest` 2026.8.1, `beta` 2026.9.1-beta.1.
-- **The plugin already passes on 2026.8.1 unmodified**: clean typecheck, 80
+- **There is no 2.0.** 252 published versions, all `2026.x.y`, no `2.x`.
+  `latest` is 2026.9.2 — and it moved twice while this change was being
+  written (2026.8.1 → 8.2 → 9.1 → 9.2), which is itself the argument for
+  pinning rather than ranging.
+- **The plugin already passes on 2026.9.2 unmodified**: clean typecheck, 80
   unit tests green, `plugins doctor` clean, `channels list --all` still offers
   `azula`. So this is a tracking change, not a migration.
-- **2026.8.1 removed a batch of `plugin-sdk` subpaths** (including the
+- **2026.9.2 removed a batch of `plugin-sdk` subpaths** (including the
   `./plugin-sdk` barrel itself) and added 51 new ones. Neither subpath this
   plugin imports — `channel-core`, `persistent-dedupe` — is among the removals.
 - **Two new install gates**, both discovered by hitting them:
@@ -32,7 +34,7 @@ running against the real thing rather than reading release notes:
 **Non-Goals:**
 
 - Chasing the beta. See D3.
-- Supporting 2026.7.x alongside 2026.8.1.
+- Supporting 2026.7.x alongside 2026.9.2.
 - Touching `azula-cli` or the `mcp-bridge` contract — nothing on the azula side
   is implicated.
 
@@ -40,7 +42,7 @@ running against the real thing rather than reading release notes:
 
 ### D1: Pin exactly, and treat a needed source edit as a finding
 
-The SDK is pinned to `2026.8.1` rather than a range, matching the `toolchain`
+The SDK is pinned to `2026.9.2` rather than a range, matching the `toolchain`
 capability's exact-pin rule and for the same reason: a range means two
 developers, or a developer and CI, can resolve different SDKs and disagree
 about whether the plugin works.
@@ -51,14 +53,14 @@ no source. If a source change turns out to be needed, that is new information
 about the release and should be written down, not quietly absorbed.
 
 This is not hypothetical: the dependency is `^2026.7.1-2` today, and that
-caret already admits 2026.8.1 — the plugin was never pinned, and a fresh
+caret already admits 2026.9.2 — the plugin was never pinned, and a fresh
 install would have crossed the release that added the install gates without
 anyone deciding to.
 
 *Alternative considered.* A caret range on the SDK, so the plugin keeps working
 as OpenClaw moves. Rejected: OpenClaw's versions are dates, not semver, so a
 range communicates nothing about compatibility and would silently pull in the
-next month's breaking changes — of which 2026.8.1 shows there are some.
+next month's breaking changes — of which 2026.9.2 shows there are some.
 
 ### D2: Declare surfaces truthfully; do not enumerate OS-level capabilities
 
@@ -76,17 +78,21 @@ it would ask for consent to register providers and tools the plugin never
 registers, training the operator to wave through a summary that does not match
 reality.
 
-### D3: Track `latest`, not `beta`
+### D3: Track `latest`; no back-compatibility to keep
 
-2026.9.1-beta.1 exists and will change before it becomes `latest`. Pinning to
-it would mean re-testing on every beta bump for a release nobody is running,
-and shipping a plugin whose stated minimum is a version most operators cannot
-install.
+The plugin has never shipped, so there is no installed base to stay compatible
+with — no migration path, no deprecation window, no minimum-version
+negotiation. It targets `latest` and says which release that is.
 
-The cost is being a release behind when 2026.9 lands. That is the right trade
-for a plugin: an operator who upgrades OpenClaw the day it ships is briefly
-ahead of the plugin's tested floor, which is a documentation problem, not a
-broken install.
+Notably `beta` (2026.9.1) is currently *behind* `latest` (2026.9.2), so
+"track the beta to stay ahead" would mean shipping against an older release.
+Tracking `latest` is both simpler and newer.
+
+The cost is a bump each time OpenClaw releases. During this change alone
+`latest` moved three times, so that cost is real — but the alternative is a
+range, and OpenClaw's versions are dates, so a range expresses nothing about
+compatibility while silently crossing releases like the one that added the
+install gates.
 
 ### D4: Verify by installing, not by typechecking
 
