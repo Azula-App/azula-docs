@@ -158,7 +158,9 @@ Sequenced first: the plugin cannot start without these (design D7).
       (`openclaw plugins install @azula-app/openclaw`), configuration, pairing,
       and the minimum azula version — verify every command in it runs as
       written
-- [ ] 7.4 Publish `@azula-app/openclaw` to npm — needs Sal's go-ahead, as it
-      ships. Also needs the `azula-openclaw` GitHub repo to exist: the repo is
-      committed locally with no remote, since creating a public repo is Sal's
-      call. Blocked by design, not by readiness
+- [x] 7.4 Publish `@azula-app/openclaw` to npm — needs Sal's go-ahead, as it
+      ships — DONE. Published 0.0.1, then 0.0.2 after installing the published
+      artifact from the registry showed the README's command did not complete:
+      the ClawHub trust gate fires for an npm install too, not just a local
+      path, so the documented command was missing `--force`. 0.0.2 installs
+      from npm with exactly the command the README gives
