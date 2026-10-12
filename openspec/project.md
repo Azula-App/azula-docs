@@ -93,9 +93,12 @@ versions, and deploys on its own.
   messenger. It owns one long-lived `azula mcp` stdio session per account and
   drives it in both directions: `send_message`/`send_file`/`render_ui`
   outbound, `get_events` inbound. Not loaded by azula itself — the gateway
-  loads it. See
-  [`openspec/specs/openclaw-channel/`](specs/openclaw-channel/) once the
-  change lands, and `openspec/changes/openclaw-channel-plugin/` until then.
+  loads it, starting one bridge per account through the channel's gateway
+  adapter (0.0.4 onward; 0.0.2 declared outbound only and never started).
+  Built against OpenClaw 2026.10.2 (Node 24) and needs azula 0.3.0+. A phone
+  pairs with the channel's own session (`openclaw` by default) via the
+  plugin's `scripts/pair.mjs`. See
+  [`openspec/specs/openclaw-channel/`](specs/openclaw-channel/).
 - `azula-docs/` — cross-repo documentation and this working agreement. Holds the
   shared CLAUDE/AGENTS files, the OpenSpec tree (`openspec/`), and the shared
   agent skills (`.claude/skills/`).
