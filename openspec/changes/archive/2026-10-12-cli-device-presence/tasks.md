@@ -33,5 +33,5 @@
       stops with the session; bare-id phone dialable end to end
 - [x] 4.2 `cargo clippy --workspace --all-targets -D warnings` clean; full test
       suite passes; real `~/.azula` unchanged across a full run
-- [ ] 4.3 On houston: after a bridge restart the phone's OpenClaw conversation
+- [x] 4.3 On houston: after a bridge restart the phone's OpenClaw conversation
       comes back online without anyone sending

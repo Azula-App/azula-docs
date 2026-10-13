@@ -30,5 +30,5 @@
 - [x] 3.2 Throwaway-profile smoke on OpenClaw 2026.10.2: login prints the invite;
       a second azula identity pairs and is adopted and saved; account-scoped
       reload; `message send` and cron deliver per account
-- [ ] 3.3 On houston: `openclaw message send --channel azula` reaches the real
+- [x] 3.3 On houston: `openclaw message send --channel azula` reaches the real
       phone

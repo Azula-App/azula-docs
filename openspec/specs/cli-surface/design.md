@@ -216,9 +216,10 @@ Two ways to build one:
   [`session-identity-design.md`](session-identity-design.md)), stand up
   the accept router (`LLM_ALPN` only — `azula mcp`/one-shot verbs never
   accept `TERM_ALPN`), preload the device registry into the map, spawn a
-  background best-effort dial per known device, and spawn the 25 s
-  redelivery loop that retries any disconnected device with mailbox-queued
-  mail. Returns `Established { core, session, router }` — `session` and
+  background best-effort dial per known device, and start the presence loop
+  that redials every disconnected known device with backoff (5 s → 60 s, 25 s
+  while mail is queued; see `mcp-bridge` "A Long-Lived Session Keeps Its
+  Devices Connected"), aborted with the session. Returns `Established { core, session, router }` — `session` and
   `router` are kept alive by the caller for their `Drop` side effects (an
   ephemeral session's key-file deletion; the router's accept loop).
 - **`SessionCore::from_parts(...)`** — direct construction for a caller that

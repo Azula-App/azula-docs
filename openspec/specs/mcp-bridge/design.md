@@ -74,10 +74,15 @@ accordingly regardless of subcommand.
 in [`cli-surface/design.md`](../../changes/cli-multi-session-relay/design-pages/cli-surface-design.md#sessioncore-the-shared-core))
 also: resolves the session key and mints its cert, loads the device registry
 and pre-populates the in-memory device map, writes the runtime state file,
-spawns a background task per known device to dial it, and spawns a loop that
-wakes every 25s to retry dialing any disconnected device that has mail
-queued (see Offline mailbox, and — since cli-multi-session-relay — the
-relay-first delivery chain below).
+spawns a background task per known device to dial it, and starts the
+presence loop (`core/presence.rs`, since cli-device-presence): every known
+device seen down is redialed with backoff 5 s → 60 s (25 s while mail is
+queued), so a phone that drops or was asleep at startup comes back without
+anything being sent (see Offline mailbox, and — since
+cli-multi-session-relay — the relay-first delivery chain below). A
+connection ending on either side marks its device disconnected and emits a
+`disconnected` event; a registry row holding a bare endpoint id is dialed by
+that id.
 
 ## Tool catalog
 
@@ -300,12 +305,13 @@ Queued frames flush in `flush_mailbox()`, called right after a successful dial
 *in* (`accept_incoming`) — before the send stream is handed to the tool layer,
 so a phone that reconnects gets its backlog first. The flush only clears the
 file if every frame writes successfully; a failure leaves it intact for the
-next attempt. Separately, the 25-second background loop `core::establish`
-spawns scans for `!connected` devices with `mailbox::has_pending() == true`
-and retries `connect_device` for each — this loop only ever retries the
-*direct* connection; it has no relay-awareness of its own (the relay path is
-tried fresh, per call, inside `send_message`/`say` themselves, not via a
-background retry).
+next attempt. Separately, the presence loop `core::establish` starts
+redials every `!connected`, non-held device on a per-device backoff (capped at
+25 s for a device with `mailbox::has_pending() == true`, 60 s otherwise), and
+each successful redial flushes the mailbox like any other dial — this loop
+only ever retries the *direct* connection; it has no relay-awareness of its
+own (the relay path is tried fresh, per call, inside `send_message`/`say`
+themselves, not via a background retry).
 
 ## Peer bridge conversations (`say`)
 

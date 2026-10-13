@@ -25,15 +25,17 @@ result picks the mechanism. Do not implement the send path before it.
 
 ## 2. Connection liveness
 
-- [ ] 2.1 Mark a device disconnected when its `reader_loop`
+- [x] 2.1 Mark a device disconnected when its `reader_loop`
       (`src/core/device.rs:151`, `173`) ends: clear `connected` and the send
       handle. `connect_device` sets `connected = true` optimistically
       (`src/core/device.rs:159`) and nothing resets it today. This is
       independent of 1.3 and can land first.
-- [ ] 2.2 Test that a device whose stream ends stops reading as connected in
+- [x] 2.2 Test that a device whose stream ends stops reading as connected in
       `status` and `watch`, and that `ensure_device`
       (`src/core/mod.rs:584-611`) re-dials it on the next send rather than
       failing.
+      (Both done by `cli-device-presence`, azula-cli 0.3.1: `connection_ended()`
+      on either reader, plus a presence loop that redials without a send.)
 
 ## 3. Truthful send outcome
 
