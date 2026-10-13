@@ -267,6 +267,41 @@ and are cross-referenced from
 and [`account-sync/design.md`](../../../specs/account-sync/design.md), which own that
 side of the wire in more depth than this page needs to duplicate.)*
 
+### The phone redials a session too
+
+Admission makes the session the dialer, so a session conversation holds no
+ticket. It does not need one: it is keyed by the session's `device_pk`, and
+that *is* the session's iroh endpoint id. `ConnectService.redialSession` dials
+it with `IrohTransport.connectById` (iroh-kmp's `IrohEndpoint.connectById`,
+resolved through address lookup, which session endpoints publish to via the
+n0 preset), on the ALPN the conversation was admitted on. The session's
+`BridgeAcceptHandler` recognises the phone's endpoint id and answers our
+`Hello` with its own, carrying its current cert.
+
+That cert goes through the same `checkSessionCert` an inbound reconnect does,
+so "reconnects re-present a cert and are re-validated" holds whichever side
+dials. Forgetting the machine therefore stops the phone dialing its sessions
+back as well as stopping it admitting them. A pass refreshes
+`sessionExpiresAt`, because a restarted *named* session mints a fresh cert. A
+failure closes the stream and ends the redial loop. A session that hangs up
+without a `Hello` counts as unreachable and is retried. The `Hello`'s name is
+not applied, as on admission: the session titles itself with `Profile`.
+
+Triggers and budgets differ on purpose:
+
+- **Stream drop, opening the conversation:** `scheduleReconnect`'s full
+  8-attempt backoff, the same as a ticketed conversation.
+- **Transport (re)bind, foreground resume:** `reconnectSessions` fans out over
+  every offline session conversation with 2 attempts each. An ephemeral
+  `azula mcp` deletes its key on exit, so its conversation's 7-day cert outlives
+  any chance of reaching it. Giving every one of those the full budget on every
+  resume would be dozens of dead dials.
+
+Excluded: disabled conversations, a stored expiry in the past (re-checked on
+every attempt), and terminal sessions. A terminal host answers a dial with no
+`Hello` (its first expected frame is the app's `TermAttach`), so there is no
+cert to re-validate. Its own redial loop covers it.
+
 ## Revocation and exposure bounds
 
 There is no per-session revocation mechanism in v1: a session cert's default
