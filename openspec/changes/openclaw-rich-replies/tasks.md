@@ -14,7 +14,8 @@
 - [x] 2.1 Tappable controls (callback, command, question; selects) render as an
       A2UI card after the text; links/approvals/model pickers stay text; the
       text lists every control; `render_ui` failure leaves the text
-- [x] 2.2 A hidden callback value beginning with `/` is not minted as a button
+- [x] 2.2 A hidden value the gateway would treat as a command (`/`, `!`, abort
+      words) is not minted as a button; command-type controls stay mintable
 - [x] 2.3 Declare `presentationCapabilities`, `describeMessageTool` →
       `presentation`, `inlineButtons` and prompt hints
 

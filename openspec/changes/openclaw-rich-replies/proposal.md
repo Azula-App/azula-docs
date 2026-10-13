@@ -34,8 +34,9 @@ OpenClaw's system prompt told the agent "Inline buttons OFF for azula".
 - After the text, a presentation's tappable controls (callback, command and
   question buttons; selects as a column of buttons) render as an A2UI card;
   links, approvals and model pickers stay in the text, which lists every
-  control. A hidden callback value starting with `/` is never minted as a
-  button, so a tap cannot run a slash command the user never saw. A
+  control. A hidden value the gateway would treat as a command (`/…`, a `!`
+  shortcut, an abort word like `stop`) is never minted as a button, so a tap
+  cannot run a command the user never saw. A
   `render_ui` failure leaves the text as the fallback.
 - Nothing deliverable is never silent: a payload with content azula cannot
   show logs a warning naming its keys.

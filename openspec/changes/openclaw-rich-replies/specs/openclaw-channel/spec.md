@@ -111,8 +111,10 @@ surface cannot be shown. Controls that cannot be acted on by a tap here (links,
 approvals, model pickers, disabled buttons) SHALL appear in the text only, and
 a surface SHALL be rendered only when there is something to tap.
 
-A control whose hidden value would run a slash command SHALL NOT be rendered as
-a button unless the control is itself a command, whose command the text shows.
+A control whose hidden value the gateway would treat as a command — a slash
+command, an inline command shortcut, or an abort word — SHALL NOT be rendered
+as a button unless the control is itself a command, whose command the text
+shows. A tap must never do something the user could not see.
 
 A tap or submission on that surface SHALL be delivered back to the gateway as
 an inbound event correlated with the message that created the surface. A
@@ -145,8 +147,8 @@ offer such choices on this channel.
 - **THEN** the text fallback still conveys the question and the turn does not
   stall
 
-#### Scenario: Hidden slash command not tappable
+#### Scenario: Hidden command not tappable
 
-- **WHEN** a control's hidden callback value begins with `/` and the control is
-  not a command
+- **WHEN** a control is not a command but its hidden value is one the gateway
+  would act on as a command (for example `/reset`, a `!` shortcut, or `stop`)
 - **THEN** it is listed in the text but not rendered as a button
