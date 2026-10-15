@@ -53,7 +53,8 @@ own gap as a separate follow-up; this is that follow-up.
 - **azula-app**: `network-api` (`IrohTransport.connectById`), `network-real`
   (the JVM/Android and iOS transports), `shared` (`ConnectService`,
   `AzulaState.setForeground`), and tests in `mock-support`.
-- iOS never calls `AzulaState.setForeground`, so the foreground trigger is
-  Android-only for now. On iOS a session still comes back on a drop, when its
-  conversation is opened, and on a re-bind.
+- When this landed, iOS never called `AzulaState.setForeground`, so the
+  foreground trigger was Android-only. `resume-sync-ios-desktop` (tasks 2.1/2.2)
+  has since wired iOS's `scenePhase` into it through `ForegroundBus`, so iOS
+  redials on resume too. Desktop still has no foreground signal.
 - No wire change; azula-cli is untouched.
