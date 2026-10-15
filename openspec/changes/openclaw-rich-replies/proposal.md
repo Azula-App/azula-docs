@@ -44,6 +44,15 @@ OpenClaw's system prompt told the agent "Inline buttons OFF for azula".
   `describeMessageTool` → `presentation`, `inlineButtons`, prompt hints), so the
   agent knows to use it.
 
+- **Follow-up found live (0.0.7):** with 0.0.6 the text and images reached the
+  phone, but the agent's interactive guide — sent with its own message tool
+  from code-mode — failed with "Gateway client authority closed before
+  dispatching send". 0.0.5 had set `deliveryMode: "gateway"` for CLI sends;
+  that routes in-gateway message-tool sends through a gateway RPC a
+  phone-started turn cannot authorize, and flattens presentations to text.
+  0.0.7 delivers `direct` (as Telegram and a2a do) and hands CLI sends to the
+  gateway's `send` RPC.
+
 ## Capabilities
 
 ### Modified Capabilities

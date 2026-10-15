@@ -18,6 +18,12 @@
       words) is not minted as a button; command-type controls stay mintable
 - [x] 2.3 Declare `presentationCapabilities`, `describeMessageTool` →
       `presentation`, `inlineButtons` and prompt hints
+- [x] 2.4 (0.0.7) Deliver `direct`, not `gateway`: in gateway mode the agent's
+      message tool inside the gateway needs a client authority a phone-started
+      turn lacks ("Gateway client authority closed before dispatching send"),
+      and core flattens its presentation to text. CLI sends hand off to the
+      gateway's `send` RPC instead; verified live — the in-gateway message
+      tool delivers `via: direct`
 
 ## 3. Verify
 
