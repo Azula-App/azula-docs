@@ -98,7 +98,7 @@ link fails with `Undefined symbols (_SC*)`.
 
 ## Build & publish
 
-Requires Android NDK r28+, Rust + the Android/iOS targets, and **JDK 17** (AGP
+Requires Android NDK r28+, Rust + the Android/iOS/macOS targets, and **JDK 17** (AGP
 8.7). The JDK and Rust come from this repo's `mise.toml`, so entering the
 directory selects them — notably a *different* JDK from azula-app's 21, which
 is why neither repo needs `JAVA_HOME` set by hand. The NDK stays
@@ -110,12 +110,16 @@ cd iroh-kmp
 mise install                       # first time only, plus `mise trust`
 export ANDROID_HOME=$HOME/Library/Android/sdk
 rustup target add aarch64-linux-android armv7-linux-androideabi \
-  x86_64-linux-android aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios
+  x86_64-linux-android aarch64-apple-ios aarch64-apple-ios-sim x86_64-apple-ios \
+  aarch64-apple-darwin
 ./gradlew publishToMavenLocal      # → ~/.m2/repository/app/azula/iroh/
 ```
 
 Publishes the root KMP metadata + per-target artifacts (`-android` aar with the
-.so, `-jvm`, `-iosarm64`, `-iossimulatorarm64`, `-iosx64`). `publishToMavenLocal`
+.so, `-jvm`, `-iosarm64`, `-iossimulatorarm64`, `-iosx64`, `-macosarm64`).
+`aarch64-apple-darwin` is the host target on an Apple Silicon Mac, and it backs
+both the `-jvm` jar's embedded dylib and the `-macosarm64` klib's staticlib.
+`./gradlew macosArm64Test` runs the macOS echo tests on the host. `publishToMavenLocal`
 works without GPG — signing is applied only when a signing key is present.
 
 `publishToMavenLocal` is for this SDK's own testing: **it does not feed
@@ -136,6 +140,47 @@ azula-app**, which resolves the coordinate from Maven Central and never reads
   no cargo invocation, and `publishToMavenLocal --dry-run` configures
   cleanly).
 
+## JVM desktop natives
+
+The `-jvm` jar embeds the native library at JNA's resource path
+(`<jna-platform-dir>/<lib>`), so any consumer loads it. That includes
+plain-metadata consumers like Amper, which never put Gobley's per-host
+"rust-runtime" classifier jar on the classpath, which is why that jar isn't
+published (`publishJvmArtifacts = false`). `embedJvmNativeLib` stages the
+libraries: the host's from cargo's `target/<triple>/{debug,release}`, plus
+everything under `-PjvmPrebuiltNatives=<dir>` when that is given.
+`publishedJvmNatives` in `build.gradle.kts` lists what a release ships:
+
+| JNA dir          | Library             | Built on                          |
+|------------------|---------------------|-----------------------------------|
+| `darwin-aarch64` | `libiroh_kmp.dylib` | the macOS publish host, by Gobley |
+| `linux-x86-64`   | `libiroh_kmp.so`    | `ubuntu-22.04`                    |
+| `linux-aarch64`  | `libiroh_kmp.so`    | `ubuntu-22.04-arm`                |
+| `win32-x86-64`   | `iroh_kmp.dll`      | `windows-2025` (MSVC)             |
+
+- **Why each builds on its own platform.** Cross-building from the Mac fails:
+  there's no `aarch64-linux-gnu-gcc` cross-linker, and mingw hits the PE
+  export-ordinal limit (see Notes). `publish.yml`'s `jvm-natives` matrix runs
+  `cargo rustc --release --locked --lib --crate-type cdylib` on each runner.
+  The `--crate-type` flag skips LTO-linking the staticlib, which nothing on
+  the JVM uses.
+- **Why `ubuntu-22.04`.** A `.so` requires the glibc symbol versions of the
+  host it was linked on, so the oldest runner sets the lowest glibc a
+  consumer's distro can have. The job's "Report the glibc floor" step prints
+  it, and the README records it.
+- **Smoke load.** Each leg loads its library with Python `ctypes`, the same
+  dlopen/LoadLibrary path JNA takes, and calls
+  `ffi_iroh_kmp_uniffi_contract_version`. A dependency that won't resolve, or a
+  missing export, fails the job before anything is published.
+- **Fail loudly.** With `-PjvmPrebuiltNatives`, `embedJvmNativeLib` requires
+  all four libraries and names any that are missing. Without it (a local
+  build), it requires only the host's, so `publishToMavenLocal` stays
+  single-host.
+- **Dry run before tagging.** `gh workflow run publish.yml --ref main` runs
+  the whole release build into mavenLocal and uploads the `-jvm` jar as the
+  `iroh-kmp-jvm` artifact. Check every leg passed and the glibc floor, and
+  `unzip -l` the jar for all four libraries.
+
 ## Publishing to Maven Central + docs CI
 
 Publishing is wired through the
@@ -144,11 +189,15 @@ plugin (**0.35.0** — 0.37+ needs Kotlin ≥2.2 / AGP ≥8.13, which Gobley 0.3
 doesn't yet support) → the **Central Portal**, plus Dokka **2.2.0** for API docs.
 Three SHA-pinned workflows live in `iroh-kmp/.github/workflows/`:
 
-- **`publish.yml`** — on a `v*` tag. Runs on `macos-latest` (the only host that can
-  build every KMP target — iOS + Android + jvm — in one publication set), derives
-  the version from the tag (`-PVERSION_NAME`), and runs
-  `publishAndReleaseToMavenCentral`.
-- **`docs.yml`** — on push to `main` (+ releases). Builds Dokka HTML and uploads
+- **`publish.yml`** — on a `v*` tag, or by hand as a dry run. First a
+  `jvm-natives` matrix builds the Linux x64/arm64 and Windows x64 libraries on
+  matching runners (see "JVM desktop natives"). Then the publish job runs on
+  `macos-latest`, the only host that can build every KMP target (iOS + macOS +
+  Android + jvm) in one publication set. It derives the version from the tag
+  (`-PVERSION_NAME`) and runs `publishAndReleaseToMavenCentral` with
+  `-PjvmPrebuiltNatives`. Dispatched by hand, it runs `publishToMavenLocal`
+  instead, with no signing and no GitHub Release, and uploads the `-jvm` jar.
+- **`docs.yml`** — on push to `main` (and `workflow_dispatch`). Builds Dokka HTML and uploads
   the `dokka-html` artifact; a `deploy` job to GitHub Pages is wired but gated
   behind `!repository.private` (Pages on a private repo needs Enterprise), so it
   activates automatically when the repo goes public and Pages is enabled
