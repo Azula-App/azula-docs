@@ -22,14 +22,14 @@
 - [x] 2.3 `publish.yml` `workflow_dispatch` dry run into mavenLocal, uploading
       the `-jvm` jar; the Central publish and GitHub Release run on tags only
 - [x] 2.4 `ci.yml` runs `cargo test` on Linux x64, Linux arm64 and Windows x64
-- [ ] 2.5 Dispatch the dry run on `main` — verify every `jvm-natives` leg
+- [x] 2.5 Dispatch the dry run on `main` — verify every `jvm-natives` leg
       passes its smoke load, record the glibc floor in the README, and verify
       the uploaded `-jvm` jar lists all four libs
-- [ ] 2.6 Verify the `ci.yml` run on `main` passes on all three platforms
+- [x] 2.6 Verify the `ci.yml` run on `main` passes on all three platforms
 
 ## 3. Release
 
-- [ ] 3.1 Bump `VERSION_NAME` and `Cargo.toml` `version` to 0.2.1, then push tag
+- [x] 3.1 Bump `VERSION_NAME` and `Cargo.toml` `version` to 0.2.1, then push tag
       `v0.2.1` — verify `publish.yml` succeeds and `iroh-kmp-macosarm64:0.2.1`
       plus a `iroh-kmp-jvm:0.2.1` jar with all four libs resolve from Maven
       Central
