@@ -34,7 +34,7 @@ The name a session announces to peers SHALL be the operator-supplied label when 
 - **WHEN** no label is supplied
 - **THEN** the session announces the endpoint-id-derived default name, unchanged from today
 
-#### Scenario: Restart preserves pairing code
+#### Scenario: Restart preserves pairing
 - **WHEN** the machine's pairing invite is regenerated after a restart
 - **THEN** it still names the same machine identity, so a previously paired phone needs no re-pairing
 
