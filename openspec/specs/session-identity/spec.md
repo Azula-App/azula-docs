@@ -1,7 +1,14 @@
 # session-identity Specification
 
 ## Purpose
-TBD - created by archiving change cli-multi-session-relay. Update Purpose after archive.
+Defines how every azula process that talks to a device gets its own trusted
+identity: a stable machine key (`~/.azula/machine.key`, adopting `bridge.key`)
+that a phone pairs with once; per-session keys presenting short-lived `azd…`
+certificates chained to it, which a phone that already knows the machine
+auto-accepts as a flat conversation; named sessions that persist across CLI
+invocations; scan-per-session pairing for headless environments with no
+machine key; and certificate expiry that bounds exposure.
+
 ## Requirements
 ### Requirement: Machine Identity Key
 Each azula installation SHALL hold a stable machine identity keypair persisted at `~/.azula/machine.key`, adopting an existing `~/.azula/bridge.key` unchanged on first run so prior phone pairings keep working (the endpoint id is unchanged). The machine key SHALL sign session certificates and SHALL be the identity a phone pairs with.

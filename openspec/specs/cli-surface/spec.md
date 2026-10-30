@@ -1,7 +1,13 @@
 # cli-surface Specification
 
 ## Purpose
-TBD - created by archiving change cli-multi-session-relay. Update Purpose after archive.
+Defines the `azula` command line: a noun-verb command taxonomy that, like the
+MCP tools, is a thin layer over one shared session core, so a script and an MCP
+client get the same behavior and offline semantics; `--json` output contracts,
+including the `azula watch` JSONL event stream; the A2UI catalog printed from
+the same source the MCP `render_ui` tool uses; stdin and file input for the UI
+verbs; and top-level options that either take effect or are rejected.
+
 ## Requirements
 ### Requirement: Noun-Verb Command Taxonomy
 The azula CLI SHALL expose its functionality as noun-verb subcommands: `azula message send|recv`, `azula ui render|update|delete|catalog`, `azula file send`, `azula watch`, `azula run`, `azula terminal [new|list|attach|kill]`, `azula mcp`, `azula relay`, `azula status`, and the existing `pair`/`devices`/`invite`/`invites`/`qr`/`link`. The legacy `serve-mcp`, `mcp` (old flag semantics), `serve`, and `mailbox` entry points SHALL remain as deprecated aliases for one release cycle and then be removed.

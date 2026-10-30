@@ -19,7 +19,7 @@ The name a session announces to peers SHALL be the operator-supplied label when 
 - **WHEN** a bridge mints a pairing invite
 - **THEN** the endpoint named by the invite's ticket SHALL be one the bridge is accepting connections on, and SHALL be able to verify that invite when it is presented back
 
-#### Scenario: Restart preserves pairing
+#### Scenario: Restart preserves pairing code
 - **WHEN** a bridge restarts and mints a fresh pairing invite under a new session identity
 - **THEN** a phone already paired with that machine SHALL need no re-pairing, because the new session's certificate chains to the same machine root
 

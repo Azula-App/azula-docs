@@ -1,7 +1,13 @@
 # relay Specification
 
 ## Purpose
-TBD - created by archiving change cli-multi-session-relay. Update Purpose after archive.
+Defines `azula relay` (alias `azula mailbox`), the identity's always-on sibling
+device: the mailbox role generalized to also carry agent chat for sessions that
+can't reach the phone directly; the order a session tries delivery in (direct,
+then relay, then the local mailbox); a bounded store of A2UI snapshots kept
+outside the hash-chained identity log and replayed when the phone reconnects;
+and the rule that interactive terminal traffic never goes through it.
+
 ## Requirements
 ### Requirement: Relay Subsumes the Mailbox Role
 `azula relay` SHALL serve the always-on identity role previously provided by `azula mailbox` (which SHALL remain as an alias): a linked sibling device retaining the identity's full logs, reachable at any time, serving the chat, sync, and link ALPNs, with the existing mailbox role bit as its wire-level role value. Enrollment SHALL be `azula link --relay` (`--mailbox` kept as an alias).

@@ -1,7 +1,13 @@
 # release-notes Specification
 
 ## Purpose
-TBD - created by archiving change app-changelog. Update Purpose after archive.
+Defines azula-app's release notes: `CHANGELOG.md` holds, per version, a
+changelog and a store text short enough for every store; user-observable
+changes add to `## [Unreleased]` as they land; cutting a release moves those
+notes into the tag and refuses to proceed while a section is incomplete; and
+publishing sends each store that tag's store text verbatim and reproducibly,
+with dry runs that show the text and publish nothing.
+
 ## Requirements
 ### Requirement: Every release carries a changelog and a store text
 

@@ -1,7 +1,14 @@
 # cli-distribution Specification
 
 ## Purpose
-TBD - created by archiving change cli-multi-session-relay. Update Purpose after archive.
+Defines how `azula-cli` ships: a single `v*` tag drives a release workflow that
+builds static binaries for macOS and Linux (arm64 and x64), attaches them to a
+GitHub Release, and publishes the same version to crates.io, npm (per-platform
+packages behind one launcher, so `npx` works anywhere node does) and a Homebrew
+tap. It also covers the relay-over-HTTPS fallback and proxy allowlist that let
+the CLI reach a device from environments without UDP, such as Claude Code web
+containers.
+
 ## Requirements
 ### Requirement: Tag-Driven Release Builds
 The `azula-cli` repository SHALL have a release workflow triggered by `v*` tags that builds static release binaries for at least `aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-musl`, and `aarch64-unknown-linux-musl`, attaching them to a GitHub Release that serves as the artifact host for the install channels. The workspace `Cargo.toml` version SHALL be the single source of truth; channel metadata (npm versions, Homebrew formula) SHALL be stamped from it by the workflow.
