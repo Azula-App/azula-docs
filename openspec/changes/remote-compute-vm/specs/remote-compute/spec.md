@@ -74,15 +74,94 @@ stdout and stderr SHALL be delivered as separate byte streams, each in order. St
 - **THEN** the files round-trip byte for byte
 
 ### Requirement: Job Timeout And Cancellation
-A job SHALL be stopped when its timeout (default 15 minutes, at most 24 hours) expires or when the client cancels or disconnects: SIGTERM to its process group, then SIGKILL after 5 seconds.
-
-#### Scenario: Disconnect cancels the job
-- **WHEN** the client is killed while `sleep 600` runs in the guest
-- **THEN** the guest process group is terminated within 10 seconds
+A job SHALL be stopped when its timeout (default 15 minutes, at most 24 hours, and never later than its grant's expiry) expires, or when a client holding its grant cancels it: SIGTERM to its process group, then SIGKILL after 5 seconds.
 
 #### Scenario: Timeout
 - **WHEN** a job runs past its timeout
-- **THEN** it is stopped and the client reports the timeout
+- **THEN** it is stopped and the client exits with code 124
+
+#### Scenario: Timeout clamped to grant expiry
+- **WHEN** a job is started with a timeout that would end after its grant expires
+- **THEN** the job is stopped no later than the grant's expiry
+
+### Requirement: Jobs Outlive Connections
+A job SHALL keep running when the connection that started it closes, with two exceptions: a job whose stdin has not reached end-of-file SHALL be cancelled with reason `stdin_lost`, and a job started with cancel-on-disconnect SHALL be cancelled after 60 seconds with no attached client. Job output SHALL be stored in the guest before it is sent, so no client's speed can stall a job.
+
+#### Scenario: Sandbox destroyed mid-build
+- **WHEN** the client is killed while a build runs in the guest
+- **THEN** the build runs to completion and its output and exit code remain retrievable for 24 hours
+
+#### Scenario: Partial stdin
+- **WHEN** the connection closes before the client sent stdin end-of-file
+- **THEN** the job is cancelled with reason `stdin_lost`
+
+### Requirement: Reattach Resumes Output Exactly
+A client SHALL be able to reattach to a job by its reference and byte offsets per stream and receive the remaining output with no bytes repeated or skipped. When requested bytes are no longer retained, the client SHALL be told the size of the gap rather than receive a silent hole. `azula compute exec` SHALL reattach automatically for a configurable window (default 5 minutes) and, when it gives up, SHALL exit 255 printing the command that reattaches.
+
+#### Scenario: Blip mid-exec
+- **WHEN** the connection drops and recovers while a job is producing output
+- **THEN** the client's stdout equals the job's complete stdout
+
+#### Scenario: Window exhausted
+- **WHEN** the host stays unreachable past the reconnect window
+- **THEN** the client exits 255 and prints `azula compute attach <vm>/<job>`
+
+### Requirement: Exec Is Idempotent
+Every exec request SHALL carry a client-generated idempotency key. A repeated request with the same grant and key SHALL return the existing job instead of starting another, and the same key with different parameters SHALL be rejected.
+
+#### Scenario: Lost acknowledgement
+- **WHEN** the connection drops after the exec was sent but before the job id arrived, and the client resends it
+- **THEN** exactly one job runs and the client attaches to it
+
+### Requirement: Grant Owns Its Jobs
+Jobs and uploads SHALL belong to the grant that created them. Another grant SHALL NOT list, attach to, or cancel them, and SHALL receive the same `not_found` as for a nonexistent job. Only a grant with the `admin` operation MAY see and cancel every grant's jobs. The broker, not the client, SHALL assign ownership.
+
+#### Scenario: Two sessions share a VM
+- **WHEN** grants A and B each run jobs on the same VM and A lists jobs
+- **THEN** A sees only its own jobs and gets `not_found` when attaching to one of B's
+
+### Requirement: File Transfer To And From The VM
+`azula compute push` and `azula compute pull` SHALL copy files between the client's filesystem and the VM's filesystem, and SHALL NOT be able to address any path on the host. A single-file transfer SHALL be verified by size and SHA-256 at the receiving end and SHALL replace its destination atomically, so the destination is never left partial.
+
+#### Scenario: Digest mismatch
+- **WHEN** received bytes don't match the sender's size or digest
+- **THEN** the destination is left unchanged and the command exits 1
+
+#### Scenario: Interrupted push
+- **WHEN** a push is cut off and run again
+- **THEN** it resumes from the bytes already in the guest and the result passes digest verification
+
+#### Scenario: Remote file changed during resume
+- **WHEN** a pull resumes but the guest file changed since it began
+- **THEN** the pull restarts from the beginning instead of combining two versions
+
+### Requirement: Tree Transfers Extract Defensively
+A recursive pull SHALL reject archive entries with absolute paths, `..` components, links resolving outside the destination, entries beneath a symlinked parent, and device or FIFO nodes, and SHALL NOT write outside the destination directory.
+
+#### Scenario: Malicious archive
+- **WHEN** the guest returns a tree containing `../escape` and a symlink to `/etc`
+- **THEN** the pull fails and nothing outside the destination is created or modified
+
+### Requirement: Multiple VMs Per Grant
+A grant SHALL be able to cover several VMs by name or glob. The client SHALL select a VM with `--vm` or `AZULA_COMPUTE_VM`, defaulting to the grant's only VM, and job references SHALL include the VM name.
+
+#### Scenario: Parallel jobs across VMs
+- **WHEN** one session runs jobs on VMs `a` and `b` at the same time
+- **THEN** both run, and each job reference names its own VM
+
+### Requirement: Live Revocation
+Revoking a grant SHALL close that grant's live connections within a few seconds, and the broker SHALL also close them when the grant expires. Its running jobs SHALL continue unless the revocation requests that they be cancelled.
+
+#### Scenario: Revoked mid-stream
+- **WHEN** a grant is revoked while its client is streaming a job's output
+- **THEN** the connection is closed within 5 seconds and reconnecting is refused
+
+### Requirement: Resource Guards
+The worker SHALL refuse new jobs past 16 running per grant or 64 per VM with `busy`. The broker SHALL refuse to start a VM whose memory would exceed host RAM minus 4 GiB with `host_busy`. A VM stop SHALL be refused with `vm_busy` while any jobs run, unless forced by a grant allowed to control VMs. While any VM runs, the broker SHALL prevent idle sleep unless told not to.
+
+#### Scenario: Stop protects others' jobs
+- **WHEN** a grant stops a VM where another grant's job is running, without force
+- **THEN** the stop is refused with `vm_busy` and the job keeps running
 
 ### Requirement: VM Lifecycle
 `azula vm create <name>` SHALL create a VM from a checksum-verified image without modifying the image, giving the VM its own disk, EFI variable store, machine identifier, MAC address and cloud-init instance id. `azula vm start|stop|status` SHALL be served by the broker, and a VM SHALL NOT keep running after the broker that started it exits. `azula vm delete <name>` SHALL refuse a running VM and otherwise remove its bundle.
