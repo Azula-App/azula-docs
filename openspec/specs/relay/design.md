@@ -348,8 +348,13 @@ pub type PreSyncAckHook = Arc<
 — **after** streaming the peer's catch-up gap (`SyncEntries`) but **strictly
 before** writing this side's own `SyncAck`. The relay's hook
 (`mailbox_role::run`) drains `RelayA2uiStore::drain_pending_messages_for_device`
-for that device and emits one `Frame::SyncA2ui { conversation, messages }`
-per conversation with pending state.
+for that device and emits `Frame::SyncA2ui { conversation, messages }` frames
+for each conversation with pending state (`mailbox_role::sync_a2ui_frames`):
+one per conversation, split into several, in order, once a conversation's
+messages pass the 4 MiB batch budget. Each surface is capped at 256 KiB but a
+conversation's number of surfaces isn't, so the split keeps the frame under
+the 16 MiB line cap (see [`wire-protocols`](../wire-protocols/design.md#frame-size-cap)).
+The phone applies each frame's messages in order, so a split is invisible to it.
 
 **Why before the ack, not after** (an earlier draft of this hook had it the
 other way — the source comment on `sync.rs`'s `PreSyncAckHook` documents the

@@ -152,7 +152,10 @@ Newline-delimited JSON, symmetric in both directions:
    never heard of is simply absent from the map.
 3. **Each side streams `SyncEntries{entries}`** for whatever the *other*
    side's vector says it's missing: per-device, ascending `seq`, batched to
-   **at most 64 entries per frame** (`MAX_ENTRIES_PER_FRAME`). A brand-new
+   **at most 64 entries per frame** (`MAX_ENTRIES_PER_FRAME`) and at most
+   4 MiB of base64 per frame (`BATCH_BYTES_PER_FRAME`), so a run of large
+   entries can't add up past the 16 MiB frame line cap (see
+   [`wire-protocols`](../wire-protocols/design.md#frame-size-cap)). A brand-new
    device sends an empty vector and so receives everything — bootstrap is
    just the largest possible gap, not a separate mechanism.
 4. **Both send `SyncAck{vector}`**, marking the catch-up phase complete.
