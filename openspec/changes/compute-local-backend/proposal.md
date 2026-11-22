@@ -1,3 +1,10 @@
+> **Status (2026-11-22):** Sal prefers an Android host that is the azula app
+> itself, installable from Play and not needing the Terminal app. That's
+> change [`compute-android-app-host`](../compute-android-app-host/proposal.md),
+> which has a working prototype. This change stays as the **grant-free
+> fallback** for people who already run the Terminal. Its `serve --local`
+> backend is shared: the app host uses its attach mode.
+
 ## Why
 
 `azula compute` (0.4.1) lets a Claude Code or Codex cloud session run jobs in

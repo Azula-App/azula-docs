@@ -20,7 +20,13 @@ spec delta live in this change's `proposal.md`, `design.md` and `specs/`.
   - The same prototype also passed `vm/e2e/cloud.sh` from a real Claude
     Code cloud sandbox (2026-11-22).
   - That needs one broker change: a local backend, specced in this change.
-- **Not viable today:** the azula Android app hosting VMs itself through
+- **Revised 2026-11-22:** an app-hosted VM does work. It needs a one-time
+  grant of two permissions and an in-process hidden-API exemption, and Play
+  policy permits it.
+  `vm/e2e/cloud.sh` passed against it without the Terminal; see
+  [`compute-android-app-host`](../../compute-android-app-host/design-pages/android-app-host-findings.md).
+  The point below is the original 2026-11-21 assessment.
+- **Not viable today (superseded):** the azula Android app hosting VMs itself through
   AVF.
   - It needs adb-granted development permissions and a hidden-API
     exemption.
