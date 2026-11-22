@@ -296,7 +296,9 @@ The run found two pre-existing bugs, neither specific to Android:
     11.21.
   - Fixed on azula-cli main (7ccfabc): only the meta package declares the
     bin.
-  - Verified on npm 9, 10 and 11. It ships with the next CLI release.
+  - Released in azula-cli **0.4.2** (2026-11-22). The published
+    `npx -y @azula-app/cli@0.4.2 --version` works on npm 9.9, 10.9 and
+    11.21 with a fresh cache. The published 0.4.1 still fails on npm 10.
 - The n0 relay rate-limit WARN appeared once per run, during the 9 MB
   push. Throughput dropped but the checksums matched.
 
