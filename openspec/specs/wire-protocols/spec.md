@@ -34,3 +34,19 @@ A change to an app-spoken protocol's messages SHALL keep peers on the same ALPN 
 #### Scenario: Incompatible change
 - **WHEN** a change would make a frame undecodable by peers that shipped on the current ALPN version
 - **THEN** it ships under a new ALPN version, and peers keep serving the old version until shipped clients no longer need it
+
+### Requirement: Frame Lines Are Bounded
+A receiver on an NDJSON `Frame` ALPN SHALL accept a frame line of up to 16 MiB (16,777,216 bytes, not counting the terminating `\n`). It SHALL treat a longer line as a protocol error that ends the stream: it SHALL NOT buffer more than the cap plus one read's worth of the line, and SHALL NOT skip the line and keep reading. The cap SHALL apply from the stream's first byte, including the not-yet-authenticated first frame. A sender SHALL keep every frame line it emits within the cap. A sender that packs a variable number of items into one frame SHALL split them across several frames, in order, instead of exceeding it.
+
+#### Scenario: Line at the cap
+- **WHEN** a peer sends a frame line of exactly 16 MiB
+- **THEN** the receiver decodes it and keeps reading the stream
+
+#### Scenario: Line over the cap
+- **WHEN** a peer sends a line longer than 16 MiB, including as its first frame before any authentication
+- **THEN** the receiver ends the stream once it has buffered no more than the cap plus one read
+- **AND** it decodes neither that line nor any line after it
+
+#### Scenario: Batched items exceed one frame's budget
+- **WHEN** a sender has more `sync_entries` entries or `sync_a2ui` messages than fit in one frame's byte budget
+- **THEN** it sends them across several frames, in order, each within the cap
