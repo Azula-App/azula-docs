@@ -291,8 +291,12 @@ The run found two pre-existing bugs, neither specific to Android:
   (`azula: not found`). The meta package and every platform package
   (`@azula-app/cli-linux-x64` and the others) all declare a bin named
   `azula`, and that sandbox's npm linked neither. It works on the Mac's npm.
-  The run used the platform package's binary directly. Follow-up: drop
-  `bin` from the platform packages.
+  The run used the platform package's binary directly.
+  - The clash reproduces with npm 9.9 and 10.9 (no `azula` link) but not
+    11.21.
+  - Fixed on azula-cli main (7ccfabc): only the meta package declares the
+    bin.
+  - Verified on npm 9, 10 and 11. It ships with the next CLI release.
 - The n0 relay rate-limit WARN appeared once per run, during the 9 MB
   push. Throughput dropped but the checksums matched.
 
