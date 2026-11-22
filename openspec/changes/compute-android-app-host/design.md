@@ -81,22 +81,33 @@ The seed also sets the apt and git proxy, switches the apt sources to
 https, masks `systemd-networkd-wait-online` (with no NIC it stalls every
 boot for 2 minutes), and installs `build-essential git file`.
 
-### D3. The broker runs as the app's child process, in attach mode
+### D3. The broker is a JNI library running in `:vmhost`, in attach mode
 
-The static `aarch64-unknown-linux-musl` azula broker ships as
-`libazula.so` in the feature's native libraries, extracted and
-executable. The host runs:
+Revised 2026-11-22. The prototype ran the static musl `azula` as a child
+process (`compute serve --local --worker-socket …`). That needs the native
+library extracted to disk so it can be exec'd. Kotlin Toolchain packages
+native libs uncompressed and unextracted, and ignores `extractNativeLibs`
+(task 1.1), so exec would need the release to patch one byte of the AAB's
+`BundleConfig.pb`.
 
-    azula compute serve --local --worker-socket <files>/run/worker.sock --vm-name default --vm-cpus N --vm-memory-mb M
+So the shipped host links the broker into an `aarch64-linux-android`
+`cdylib` with a small JNI surface. It's `libazula_host.so`, built with the
+NDK, from a new azula-cli crate that reuses the `compute` broker code.
+- `start(configJson)` runs the attach-mode broker on its own tokio runtime
+  in the `:vmhost` process.
+- `stop()`, `mintGrant(ttl, label) → token`, `listGrants()` and
+  `revoke(id)` cover the rest.
 
-with `HOME` and `AZULA_COMPUTE_DIR` in app-private storage.
-- **Platform fallbacks.** On Android, iroh falls back to built-in DNS and
-  embedded TLS roots, and netlink is denied (a harmless warning).
-- **Attach mode** waits up to 180 s for the worker, refuses `vm stop`, and
-  never looks up users.
-- **Alternative:** link the broker as a JNI library, which removes a
-  phantom process. That can come later. The child-process form reuses
-  the CLI binary unchanged.
+Benefits:
+- It needs no exec and no AAB patch.
+- There's one fewer phantom process.
+- It uses the same code as `azula compute serve --local --worker-socket`
+  (attach mode: waits up to 180 s for the worker, refuses `vm stop`, never
+  looks up users).
+
+Platform fallbacks still apply: iroh's built-in DNS and embedded TLS roots;
+netlink is denied, a harmless warning. The CLI child-process form stays for
+the sideloaded prototype (`vm/android-host`).
 
 ### D4. Guest internet through an HTTP proxy over pooled vsock
 
@@ -121,22 +132,40 @@ certificates. `azula-timesync` sets the clock from the HTTP `Date` header
 of `http://deb.debian.org/`, through the proxy, at boot and every 5
 minutes. The periodic run also recovers after the phone suspends the VM.
 
-### D6. Shipping inside `app.azula` as an on-demand dynamic feature
+### D6. Shipping in `app.azula`'s base APK, in its own `:vmhost` process
 
-This was Sal's decision on 2026-11-22. The alternative recommended to him
-was a separate Play app.
-- **The feature module** carries the host code, the broker library
-  (~25 MB) and the seed. Only users who host download it.
-- **The base manifest** must declare `MANAGE_VIRTUAL_MACHINE`,
+Sal first chose an on-demand Play dynamic feature (2026-11-22). Task 1.1
+then showed that Kotlin Toolchain (Amper) can't build one, in 0.11.0 or
+the latest 0.14.1:
+- `android/app` is its only Android product type
+  ([product types](https://kotlin-toolchain.org/latest/user-guide/product-types/overview/)).
+- The generated Gradle project can't be customized.
+- Feature request [KTC-5242](https://youtrack.jetbrains.com/issue/KTC-5242)
+  is open with no fix version.
+
+**Sal's revised decision (2026-11-22): the host goes in `app.azula`'s base
+APK, with the broker as a JNI library (D3).**
+
+The alternatives he weighed:
+- the same with an exec'd broker plus an AAB patch;
+- a separate Play app;
+- a Gradle-built Android shell, about 1–2 weeks of work;
+- waiting on KTC-5242.
+
+What this means:
+- **Base APK contents:** the host's Kotlin code, `libazula_host.so` (about
+  10–13 MB compressed on arm64, estimated from the 13.2 MB release tarball)
+  and the seed ISO asset.
+- **The manifest** declares `MANAGE_VIRTUAL_MACHINE`,
   `USE_CUSTOM_VIRTUAL_MACHINE`, `FOREGROUND_SERVICE_SPECIAL_USE` and the
-  `specialUse` service. Feature manifests merge into the base, and
-  undeclared-but-ungranted permissions are harmless.
-- **Hosting runs in a dedicated `:vmhost` process.** The hidden-API
-  exemption and the VM's phantom processes are confined to it, and a UI
-  crash doesn't take the VM down.
-- **Open risk:** azula-app builds with Amper, and Play Feature Delivery
-  support there is unverified (tasks 1.1). The fallback is a Gradle-built
-  Android app shell around the KMP modules.
+  `specialUse` service with `android:process=":vmhost"`. Ungranted
+  permissions are harmless for people who never host.
+- **The `:vmhost` process** holds the hidden-API exemption, the broker and
+  the VM's phantom processes. A UI crash doesn't take the VM down. A
+  `:vmhost` service in an Amper `android/app` was verified on the Pixel
+  (task 1.1).
+- **Later:** if KTC-5242 ships, the host can move to an on-demand feature
+  to drop the download cost for non-hosts.
 
 ### D7. A one-time grant through in-app wireless-debugging pairing
 
@@ -207,7 +236,7 @@ grants. Check that before telling users they can turn it off.
 
 1. Land azula-cli's prototype branch work: attach mode, `--job-env-file`,
    `vm/avf-seed`, and the musl broker build in release.
-2. Build the dynamic feature in azula-app, starting with the Amper spike.
+2. Build the host into azula-app's base APK, with the JNI broker (D3, D6).
 3. Ship it behind a settings entry that's hidden until the feature works
    on Pixel 6, 8 and 10a.
 4. Then submit to Play.

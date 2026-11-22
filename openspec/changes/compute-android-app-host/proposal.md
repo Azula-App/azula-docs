@@ -26,18 +26,21 @@ in-app wireless-debugging pairing for that, with no computer
 
 ## What Changes
 
-- **An "azula host" dynamic feature in `app.azula`.** It's a Play Feature
-  Delivery module, installed on demand (Sal, 2026-11-22). It hosts one
-  Linux VM through `android.system.virtualmachine`, which it reaches with
-  an in-process hidden-API exemption, and runs in its own `:vmhost`
-  process under a `specialUse` foreground service.
+- **An "azula host" in `app.azula`'s base APK.** Sal first chose an
+  on-demand dynamic feature, then revised to the base APK on 2026-11-22,
+  because Kotlin Toolchain can't build dynamic features; see design D6. It
+  hosts one Linux VM through `android.system.virtualmachine`, which it
+  reaches with an in-process hidden-API exemption. It runs in its own
+  `:vmhost` process under a `specialUse` foreground service.
 - **The same guest as on the Mac.** It's the stock Debian 13 arm64 cloud
   image, EFI-booted by the APEX's own `u-boot.bin`, plus a cloud-init
   NoCloud seed. The seed installs `azula-guest` (vsock 1024), an HTTP proxy
   shim, and clock sync over the proxy.
-- **The broker runs unchanged.** It's the static `azula` Linux binary,
-  launched by the app with `compute serve --local --worker-socket <app
-  socket>` (the new **attach mode**). The app bridges that socket to
+- **The same broker code.** It's azula-cli's `compute` broker in attach
+  mode, linked as a JNI library (`libazula_host.so`) that runs in
+  `:vmhost`. It's the same code as `compute serve --local --worker-socket
+  <app socket>`, which the sideloaded prototype runs as a child process.
+  The app bridges that socket to
   `VirtualMachine.connectVsock(1024)`, so the client side is identical to a
   Mac host.
 - **Guest internet without a NIC.** The app runs an HTTP CONNECT and
@@ -70,12 +73,12 @@ None.
 ## Impact
 
 - **`azula-app`:**
-  - A new on-demand dynamic feature module. Its code, the ~25 MB broker
-    library and the seed ISO stay out of the base APK.
-  - The base manifest gains the two VM permissions and the `specialUse`
-    foreground-service declaration.
-  - Open risk: azula-app builds with Amper, and dynamic-feature support
-    there is unverified (tasks 1.1).
+  - The host code, `libazula_host.so` (about 10–13 MB more download on
+    arm64) and the seed ISO go into the base APK.
+  - The manifest gains the two VM permissions and the `specialUse`
+    foreground service in `:vmhost`.
+  - Kotlin Toolchain can't build Play dynamic features (KTC-5242), so the
+    feature isn't on-demand.
 - **`azula-cli`:**
   - The `compute-avf-host` prototype branch lands: attach mode, `--job-env-file`, `vm/avf-seed`, and `vm/android-host` as the reference prototype.
   - The release builds the static musl broker.
