@@ -40,6 +40,7 @@ group 1. Group 5 depends on groups 1–4.
 ## 4. Verification on hardware
 
 - [ ] 4.1 On the Pixel 10a's Terminal VM: run `local-setup`, mint a grant, and run `vm/e2e/cloud.sh` against it from a Claude Code cloud environment with the n0 relays allowlisted. Record the timings here.
+  - 2026-11-22, **prototype** (root worker via `sudo`, broker under a hand-written systemd unit, 4 GB VM), from the `azula-cli` cloud environment (x86_64, TLS-intercepting proxy, relay-only): ALL PASS in 90 s once the `cloud.sh` SIGPIPE fix was applied. Doctor took 2.8 s (dial 199 ms, auth 166 ms, guest 432 ms). See the findings page. Re-run this on the reworked implementation before checking the box.
 - [ ] 4.2 Confinement checks on the device:
   - a job can't read `~droid/.azula/compute/host.key` or list `/mnt/shared`;
   - `azula compute push` to `/home/droid/x` fails;

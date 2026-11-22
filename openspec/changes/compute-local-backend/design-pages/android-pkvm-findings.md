@@ -17,6 +17,8 @@ spec delta live in this change's `proposal.md`, `design.md` and `specs/`.
   - A prototype `azula compute serve --local` (branch
     `compute-local-backend`) served `exec`, `push` and `pull` from the
     Pixel to a client on the Mac over the n0 relays.
+  - The same prototype also passed `vm/e2e/cloud.sh` from a real Claude
+    Code cloud sandbox (2026-11-22).
   - That needs one broker change: a local backend, specced in this change.
 - **Not viable today:** the azula Android app hosting VMs itself through
   AVF.
@@ -267,6 +269,32 @@ checks) add about 300–400 more lines, plus about 20 in `azula-guest`.
 | 64 MiB push / pull (direct path on the same Wi-Fi) | 5.6 s / 3.4 s (11 / 19 MiB/s) | | |
 | 16 MiB push / pull with `AZULA_RELAY_ONLY=1` | 34.7 s / 33.8 s (~0.47 MiB/s; n0 relay rate limiting) | | |
 | `vm/e2e/cloud.sh` from the Mac, relay-only, broker under systemd, 4 GB VM | **ALL PASS in 75 s** (doctor, reattach after a forced drop, 9 MB resumable push/pull, build pushed tree in the VM, detach/attach, SIGKILLed client, timeout) | | |
+| `vm/e2e/cloud.sh` from a **Claude Code cloud sandbox** (`azula-cli` environment, x86_64, TLS-intercepting proxy, relay-only) | **ALL PASS in 90 s** with the script fix below. Doctor 2.8 s: bind+relay 1.7 s, dial 199 ms, auth 166 ms, guest 432 ms | | |
+| `cargo build --release` of `vm/guest`, run as a job from the cloud sandbox | 24.5 s wall, 198% CPU (LTO with one codegen unit), 590 MB RSS; client round trip 27.4 s | | |
+
+### The cloud sandbox run (2026-11-22, 06:17–06:23 UTC)
+
+Sal started a Claude Code cloud session on `Azula-App/azula-cli` in the
+`azula-cli` environment, with a 6-hour grant. It drove the Pixel's Terminal
+VM through the prototype broker. The broker's own log shows 69 requests
+under that grant in those six minutes: exec, attach, jobs, put, get, vm and
+ping. The grant was revoked afterwards.
+
+The run found two pre-existing bugs, neither specific to Android:
+
+- **`vm/e2e/cloud.sh` H3 failed falsely.**
+  `c jobs | tee | grep -q` runs under `pipefail`. Once the jobs list
+  outgrows one pipe write (about 19 rows, from earlier runs on the same
+  host), `tee` dies of SIGPIPE and the step returns 141 even though the job
+  is listed. Fixed on azula-cli main and re-verified with 39 listed jobs.
+- **`npx -y @azula-app/cli@0.4.1` failed in the cloud sandbox**
+  (`azula: not found`). The meta package and every platform package
+  (`@azula-app/cli-linux-x64` and the others) all declare a bin named
+  `azula`, and that sandbox's npm linked neither. It works on the Mac's npm.
+  The run used the platform package's binary directly. Follow-up: drop
+  `bin` from the platform packages.
+- The n0 relay rate-limit WARN appeared once per run, during the 9 MB
+  push. Throughput dropped but the checksums matched.
 
 ## Incidents worth designing for
 
