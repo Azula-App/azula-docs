@@ -15,7 +15,7 @@ only points there.
 | `azula/sync/0` | sibling app devices ↔ each other; app → relay (the CLI only accepts) | NDJSON `Frame`, mutual `sync_hello`, then vectors, entries, and live push | [`account-sync`](../account-sync/spec.md) |
 | `azula/link/0` | root device (app) → new device (app or CLI) | NDJSON `Frame`, one `link_hello` → `link_grant`/`link_reject` exchange, with a priming `\n` from the dialer | [`device-linking`](../device-linking/spec.md) |
 | `azula/media/0` | app ↔ app only; azula-cli has no handler | one JSON request line, one JSON response line, then the raw body | [`media-transfer`](../media-transfer/design.md) |
-| `azula/compute/1` | CLI client ↔ CLI broker; the broker splices to the guest | u32 header length + u32 payload length + JSON header + raw payload, shared with the helper and guest hops | `azula-cli/vm/README.md` §1–2, `vm/BROKER.md` §5 (change `remote-compute-vm`) |
+| `azula/compute/1` | CLI client ↔ CLI broker; the broker splices to the guest | u32 header length + u32 payload length + JSON header + raw payload, shared with the helper and guest hops | `azula-cli/vm/README.md` §1–2, `vm/BROKER.md` §5; capability [`remote-compute`](../remote-compute/) (shipped in azula-cli 0.4.1) |
 
 The **NDJSON `Frame` codec** is shared by the five `Frame` ALPNs:
 

@@ -54,11 +54,13 @@ in design.md (H1–H9, S1–S31) is the acceptance list for groups 3–7.
 ## 6. Packaging
 
 - [x] 6.1 Release workflow: build and sign `azula-vm` and build `azula-guest` on the macOS arm64 leg; ship both inside that leg's archive, the npm platform package and the Homebrew formula, next to `azula`.
-- [ ] 6.2 Verify the first tagged release's macOS arm64 archive contains both companions and `compute serve` finds them.
+- [x] 6.2 Verify the first tagged release's macOS arm64 archive contains both companions and `compute serve` finds them.
+  - v0.4.0's macOS legs were refused (GitHub retired `macos-14`); v0.4.1 moved them to `macos-15` and shipped to GitHub Releases, crates.io and npm. The `aarch64-apple-darwin` archive holds `azula`, `azula-vm` (ad-hoc signed with `com.apple.security.virtualization`) and the static `azula-guest.linux-aarch64`; the npm `cli-darwin-arm64` package carries the same three. The released `compute serve`, run straight from the extracted archive, found both, booted VM `build` and ran `compute exec` (Linux aarch64, azula-guest 0.1.0).
 
 ## 7. End to end
 
 - [x] 7.1 Local, over the relay with `AZULA_RELAY_ONLY=1`: the scenario catalog rows that don't need a cloud sandbox.
 - [x] 7.2 From the real Claude Code cloud sandbox: doctor, exec, push → build → pull, timeout, reconnect after a forced drop, detach + attach, revoke. Record a summary here.
   - `vm/e2e/cloud.sh` ALL PASS three times from the sandbox (9a3344d twice: 1m48s, 1m46s; 1b09dcd / 0.4.0: 1m28s): doctor incl. guest; `uname -sm` = Linux aarch64; exit 7 with separate streams; 300k lines byte-identical through a forced mid-stream drop (S4); 9 MB push + pull each through a forced drop, resumed at 3.0 MiB, SHA-256 identical on all three copies (S7); C tree pushed, built in the VM, aarch64 binary and tree pulled back (H4); detached job attached later with exit 5 (H3); a job finished after its client was SIGKILLed and was recovered via `jobs` + `attach` (S9/H8); timeout → 124. Grant revoked afterwards; the relay's fair-use throttling showed once (WARN) during the 9 MB transfer.
-- [ ] 7.3 Docs: azula-cli README section and the azula.app docs page; run the `doc-examples` skill; validate and archive this change.
+- [x] 7.3 Docs: azula-cli README section and the azula.app docs page; run the `doc-examples` skill; validate and archive this change.
+  - README section + ALPN row; azula.app `/docs/compute` and an inline agent recipe in `/llms.txt` (live 2026-11-22). doc-examples: surface/sync/lint clean against the released 0.4.1; the one executable failure (`qr-ticket`) predates this change and fails on 0.3.1 too.
