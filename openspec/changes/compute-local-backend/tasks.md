@@ -45,7 +45,7 @@ group 1. Group 5 depends on groups 1–4.
   - `azula compute push` to `/home/droid/x` fails;
   - `vm stop` returns `unsupported`;
   - a broker restart (`systemctl restart azula-compute`) leaves a running job attachable.
-- [ ] 4.3 Soak test: an unplugged, screen-off overnight run with Keep awake set to Indefinite. A job writes a heartbeat every minute. Record gaps, battery drop, and Android thermal status.
+- [ ] 4.3 Soak test: an unplugged, screen-off overnight run with Keep awake set to its longest option (1 day on the 10a's build). A job writes a heartbeat every minute. Record gaps, battery drop, and Android thermal status.
 
 ## Workflow follow-up
 

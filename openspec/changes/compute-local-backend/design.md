@@ -140,7 +140,11 @@ jobs running and attachable. That is the robustness D11 of
   kill the phone owner's own session.
 - The Terminal VM boots only when the phone owner opens the Terminal app.
   After a phone reboot the host is offline until then.
-- Recommend **Keep awake → Indefinite** and a charger. On the 10a, with
+- Closing the Terminal app stops the VM. Its own dialog warns: "Closing the
+  terminal will stop all Linux background processes."
+- Recommend Keep awake set to its longest option (**1 day** on the 10a's
+  build; `classes.dex` also has an "Indefinite" string) and a charger. On
+  the 10a, with
   defaults and adb attached, the VM kept running jobs with network through
   2.5 minutes of screen-off and 2 minutes of forced deep Doze. The
   Terminal's `VmService` is a `specialUse` foreground service.

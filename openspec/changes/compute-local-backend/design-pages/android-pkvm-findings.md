@@ -142,7 +142,12 @@ dumped its manifest, cloud-init seed and guest root files.
   `droid:users` with mode 0770. A job user outside group `users` can't
   open it (verified).
 - **Settings.** Memory size runs from 1.0 to 5.2 GB and needs a VM
-  restart. Keep awake runs from Off to Indefinite (it holds a WakeLock).
+  restart. Keep awake offers Off, 1/5/10/30 minutes, 1/2/6 hours and 1 day
+  on this build, with a battery warning, and holds a WakeLock. `classes.dex`
+  also has an "Indefinite" string that this build doesn't show.
+  Closing the Terminal prompts "Closing the terminal will stop all Linux
+  background processes", so the host lives only as long as the Terminal
+  app.
   Disk resize, port control and display resolution are also there.
 - **Custom images.** The Terminal auto-installs a custom image placed in
   `/sdcard/linux`. If a custom config is present, it skips its own memory,
@@ -261,6 +266,7 @@ checks) add about 300–400 more lines, plus about 20 in `azula-guest`.
 | `azula compute exec -- true` round trip | 0.79 s | | |
 | 64 MiB push / pull (direct path on the same Wi-Fi) | 5.6 s / 3.4 s (11 / 19 MiB/s) | | |
 | 16 MiB push / pull with `AZULA_RELAY_ONLY=1` | 34.7 s / 33.8 s (~0.47 MiB/s; n0 relay rate limiting) | | |
+| `vm/e2e/cloud.sh` from the Mac, relay-only, broker under systemd, 4 GB VM | **ALL PASS in 75 s** (doctor, reattach after a forced drop, 9 MB resumable push/pull, build pushed tree in the VM, detach/attach, SIGKILLed client, timeout) | | |
 
 ## Incidents worth designing for
 
