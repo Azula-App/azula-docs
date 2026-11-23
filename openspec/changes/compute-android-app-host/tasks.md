@@ -21,12 +21,16 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 
 - [x] 2.1 Land `compute-avf-host` on main, together with or after `compute-local-backend` group 1: attach mode, `--job-env-file` (exec test), and `vm/avf-seed`. Verify with `cargo test --lib compute` and the guest test suite.
   - 2026-11-22: merged as azula-cli e4ef3f1. 96 `compute` tests, the guest suites and clippy are clean. Verified on the Pixel 10a: Terminal mode `cloud.sh` ALL PASS, and attach mode (app-hosted AVF VM, no Terminal app, connect-only broker) ALL PASS, both relay-only. The branch and worktree are removed.
-- [ ] 2.2 The JNI broker: a new azula-cli crate (`android-host-jni`) that builds an `aarch64-linux-android` `cdylib`, `libazula_host.so`, with the NDK. It exposes `start(configJson)`, `stop()`, `mintGrant(ttl, label)`, `listGrants()` and `revoke(id)` over the `compute` attach-mode broker. Release attaches it, plus `vm/avf-seed/build-seed.sh`'s `seed.iso`, as artifacts the app build consumes. Verify the library loads and serves `compute doctor` from a test app on the Pixel, and that the artifacts attach to a dry-run release.
+- [x] 2.2 The JNI broker: a new azula-cli crate (`android-host-jni`) that builds an `aarch64-linux-android` `cdylib`, `libazula_host.so`, with the NDK. It exposes `start(configJson)`, `stop()`, `mintGrant(ttl, label)`, `listGrants()` and `revoke(id)` over the `compute` attach-mode broker. Release attaches it, plus `vm/avf-seed/build-seed.sh`'s `seed.iso`, as artifacts the app build consumes. Verify the library loads and serves `compute doctor` from a test app on the Pixel, and that the artifacts attach to a dry-run release.
   - 2026-11-23: library done, on azula-cli main (merge deb0668).
     - It's 14.8 MB stripped, 6.1 MB gzipped.
     - On the Pixel 10a the prototype app, installed as `app.azula.avfhost.jni`, runs the broker in-process; `virtmgr` is the app's only child.
     - Relay-only from the Mac: `compute doctor` passes every stage and `vm/e2e/cloud.sh` is ALL PASS. A JNI `revoke` returns true.
-    - **Still open:** release wiring. CI builds `libazula_host.so` and `seed.iso` and attaches them to a dry-run release.
+    - 2026-11-23, release wiring on azula-cli main (0e8f937):
+      - `release.yml` gains an `android-host` job (ubuntu, NDK) and an `avf-seed` job (macos-15). On a `v*` tag they attach `azula-host-android-<version>-aarch64.tar.gz` and `azula-avf-seed-<version>.iso`, each with a `.sha256`.
+      - A `workflow_dispatch` build-only run uploads them as workflow artifacts and skips every publish job.
+      - Verified: run 45114819456 succeeded. The `.so` is an aarch64 shared object exporting the five `Java_app_azula_vmhost_AzulaHost_*` symbols. The ISO is labelled `cidata` and holds `user-data`, `meta-data`, `azula-guest`, `azula-vsock-proxy` and `azula-timesync`. Both sha256 files match.
+      - The tag-triggered attach is first exercised at the next CLI release.
 
 ## 3. The host in azula-app (base APK, `:vmhost`)
 
