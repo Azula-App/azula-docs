@@ -19,7 +19,8 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 
 ## 2. azula-cli
 
-- [ ] 2.1 Land `compute-avf-host` on main, together with or after `compute-local-backend` group 1: attach mode, `--job-env-file` (exec test), and `vm/avf-seed`. Verify with `cargo test --lib compute` and the guest test suite.
+- [x] 2.1 Land `compute-avf-host` on main, together with or after `compute-local-backend` group 1: attach mode, `--job-env-file` (exec test), and `vm/avf-seed`. Verify with `cargo test --lib compute` and the guest test suite.
+  - 2026-11-22: merged as azula-cli e4ef3f1. 96 `compute` tests, the guest suites and clippy are clean. Verified on the Pixel 10a: Terminal mode `cloud.sh` ALL PASS, and attach mode (app-hosted AVF VM, no Terminal app, connect-only broker) ALL PASS, both relay-only. The branch and worktree are removed.
 - [ ] 2.2 The JNI broker: a new azula-cli crate (`android-host-jni`) that builds an `aarch64-linux-android` `cdylib`, `libazula_host.so`, with the NDK. It exposes `start(configJson)`, `stop()`, `mintGrant(ttl, label)`, `listGrants()` and `revoke(id)` over the `compute` attach-mode broker. Release attaches it, plus `vm/avf-seed/build-seed.sh`'s `seed.iso`, as artifacts the app build consumes. Verify the library loads and serves `compute doctor` from a test app on the Pixel, and that the artifacts attach to a dry-run release.
 
 ## 3. The host in azula-app (base APK, `:vmhost`)
