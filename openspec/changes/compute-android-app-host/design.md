@@ -206,6 +206,136 @@ grants. Check that before telling users they can turn it off.
 - **No battery-optimization exemption request.** A foreground service plus
   a partial wake lock kept the VM working through forced deep Doze.
 
+### D9. The setup flow: one entry, no questions, a guided grant
+
+Sal requires (2026-11-22) that setup be easy and streamlined, and that is
+a requirement, not polish. Design targets:
+- **About 2 minutes and about 10 deliberate taps** from first tap to
+  Ready, excluding the image download, for a user whose Developer options
+  are already on.
+- **The download runs during the grant step.** Downloading needs no
+  permission, so it starts the moment the user commits.
+- **Copy** follows the azula voice (§9.6): lowercase, `·` separators.
+- **Surfaces** use the existing recipes (design system §7.5): raised
+  cards, muted panels, the primary button with glow halo, `StatusDot`, and
+  the onboarding `*StepContent` pattern.
+
+**S0 · Entry.** One `SettingsRow` in Settings: "host compute on this
+phone". There is also a Home card once the device is known to qualify. It
+is the only way in.
+
+**S1 · Capability check.** This is automatic and takes under a second.
+Nothing has been downloaded or granted yet.
+- **Checks:** AVF non-protected VMs (`getCapabilities`, and
+  `ro.boot.hypervisor.vm.supported`), Android 14+, RAM of at least 6 GiB,
+  free space of at least 20 GiB, and that the hidden-API exemption works.
+- **Pass:** a raised card with the summary "this phone can host · 8 cores
+  · 4 GB for jobs · 16 GB disk · 0.4 GB download". The sizes are the
+  defaults: about 50% of RAM, and the disk is `min(16 GiB, 25% of free
+  space)`. "advanced" (a muted, collapsed panel) changes them. There's one
+  primary button, **set up**.
+- **Fail:** one plain sentence saying why, for example "this phone can't
+  run azula vms — its hypervisor only allows protected vms" or "needs 20 GB
+  free · 9 GB free now". It offers a link to the Terminal-app path where
+  that path applies, and nothing to tap through.
+
+**S2 · Permission (one-time).** This only appears if either VM permission
+is missing. Tapping **set up** also starts S3's download in the background.
+The card is a three-line checklist, each line with a `StatusDot`, and the
+app re-detects state every time it resumes.
+1. **"developer options".**
+   - If on, it's ticked already.
+   - If off, it shows the button **open about phone** with the hint "tap
+     build number 7 times, then come back". That's a deep link to
+     `ACTION_DEVICE_INFO_SETTINGS`; an app can't toggle Developer
+     options.
+   - The line ticks itself when the user returns.
+2. **"wireless debugging".**
+   - The button **open wireless debugging** deep-links to Developer options
+     with Wireless debugging highlighted, with the hint "turn it on, then
+     tap *pair device with pairing code*".
+   - Just before this, the app requests `POST_NOTIFICATIONS`, the system
+     dialog, because the code entry lives in a notification.
+   - Meanwhile the app discovers the pairing service over mDNS
+     (`_adb-tls-pairing._tcp`), so the user never types a port.
+   - As soon as the service appears, azula posts a notification "enter the
+     6-digit pairing code" with an inline reply field. The user types the
+     code without leaving Settings.
+3. **"permission granted".** azula then:
+   - pairs, and connects to `_adb-tls-connect._tcp`;
+   - runs `pm grant app.azula` for both permissions;
+   - verifies them;
+   - posts "done — back to azula", which returns to the app.
+
+   The step persists its progress (pairing key, current line), so an
+   app switch, process death or reboot resumes on the right line. After
+   success it adds one line: "you can turn wireless debugging off now".
+   Whether Developer options can go off too depends on task 3.5.
+
+**S3 · Provisioning (hands-off).**
+- **What runs:** a progress foreground notification plus an in-app
+  stepper:
+  1. downloading debian · 0.4 GB (resumable over HTTP ranges, checked
+     against `SHA512SUMS`);
+  2. preparing disk;
+  3. first boot · installing tools (about 4 min).
+- **The user can leave.** Each stage resumes after process death.
+- **Recoverable failures retry with backoff** and show one line plus
+  **retry**: no network, low storage (a recomputed space figure), or a
+  checksum mismatch (re-download the bad part).
+- **It ends at S4 with no input.**
+
+**S4 · Ready.** A raised card with a `StatusDot`: "hosting · running · 8
+cores · 4 GB · 16 GB". It has:
+- a **hosting** toggle;
+- the primary button **connect a cloud session**;
+- below that, active grants, each with **revoke**.
+
+The foreground notification carries **stop**. If the VM dies, the status
+reads "restarting…" and the app restarts it once on its own; repeated
+failures show the cause.
+
+**S5 · Connect a cloud session.** A bottom sheet, in the style of
+`CreateInviteSheet`.
+- **Grant:** azula mints a grant right away (default 6 h, with chips for 1
+  h, 6 h and 7 d) and auto-labels it "cloud session · {time}".
+- **Snippet** (copy, share, or `QrView`):
+
+  ```
+  export AZULA_COMPUTE_TOKEN='azc1.…' AZULA_RELAY_ONLY=1
+  npx -y @azula-app/cli compute doctor && npx -y @azula-app/cli compute exec -- uname -a
+  ```
+
+- **Under the snippet**, a muted panel: "the cloud environment must allow
+  the n0 relay hosts · how" (a link to the site docs).
+
+**Errors that fix themselves or say exactly what to do.**
+
+| Situation | What azula does |
+|---|---|
+| A grant is missing or revoked | S4 shows "permission missing", and the single button re-runs only S2 |
+| Developer options turned off | If that revokes grants (task 3.5), same as the row above. If not, nothing. |
+| Low storage | The exact space needed and what's free now. Provisioning resumes on **retry**. |
+| Download or checksum failure | An automatic retry with backoff. After three failures, one line plus **retry**. |
+| VM killed (LMK, crash) | Automatic restart once. "restarting…" then running. If it repeats, "stopped — {cause}" plus **start**. |
+| Phone can't host | Said at S1, before any download or grant |
+
+**Tap count at the targets** (for a user whose Developer options are
+already on):
+1. set up
+2. allow notifications
+3. open wireless debugging
+4. turn it on
+5. confirm the dialog
+6. pair device with pairing code
+7. enter the code in the notification (typing)
+8. send
+9. back to azula
+
+That's 9 deliberate taps plus typing the code. Ready follows without
+input. Turning on Developer options adds 7 taps on Build number plus
+navigation. Task 3.7 measures the real numbers.
+
 ## Risks / Trade-offs
 
 - **[The hidden-API exemption breaks in a future Android or ART release.]**

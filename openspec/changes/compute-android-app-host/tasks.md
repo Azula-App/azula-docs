@@ -30,6 +30,26 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 - [ ] 3.3 The one-time grant: an embedded adb client for wireless-debugging pairing (a pairing code entered in a notification, then TLS) that runs `pm grant` for both permissions, with onboarding screens. Detect existing grants, and say which one is missing. Verify on a phone that has never been granted, with no computer attached.
 - [ ] 3.4 The grant UI: mint, copy and QR-code a compute grant, list grants, and revoke them, through the JNI broker's `mintGrant`/`listGrants`/`revoke`. Verify a minted token works from the Mac relay-only.
 - [ ] 3.5 Find out whether turning Developer options off revokes the grants (design open question). Record the result here and in the onboarding copy.
+- [ ] 3.6 The setup flow, exactly as design D9 (approved by Sal 2026-11-22):
+  - S0, the single entry;
+  - S1, the capability check with defaults and the "advanced" panel;
+  - S2, the checklist, with:
+    - detection on resume;
+    - just-in-time `POST_NOTIFICATIONS`;
+    - mDNS `_adb-tls-pairing._tcp` discovery;
+    - code entry by notification reply;
+    - automatic grant and return;
+  - S3, hands-off provisioning that starts at "set up";
+  - S4, Ready, with hosting on/off and grants;
+  - S5, the connect sheet, with the snippet as copy, share and QR;
+  - the D9 error table.
+
+  Each step persists its state and resumes after process death. Use the existing surface recipes and `*StepContent` pattern, with copy in the azula voice. Verify with Compose UI tests in the `-mock` app for every screen and error state, plus a process-death test on the Pixel for S2 and S3.
+- [ ] 3.7 Measure setup on the Pixel 10a.
+  - **Starting state:** a fresh install under a non-`app.azula` id (e.g. `app.azula.debug`), both VM permissions not granted, Wireless debugging with no paired devices, no computer used for any step. adb stays attached only to record.
+  - **Record:** time and deliberate taps from the first "host compute on this phone" to Ready. Measure once with Developer options already on, excluding download time, which is recorded separately. Add the 7-tap Build-number path as a note.
+  - **Evidence:** a screen recording (`adb shell screenrecord`) or a screenshot per step, kept with the change. Send the result to Sal with SendUserFile.
+  - **Target:** about 2 minutes and about 10 taps. Over that, the flow gets another pass before 4.1.
 
 ## 4. Play
 

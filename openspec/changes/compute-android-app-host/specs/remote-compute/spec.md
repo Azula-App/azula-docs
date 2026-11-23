@@ -43,6 +43,21 @@ When `MANAGE_VIRTUAL_MACHINE` or `USE_CUSTOM_VIRTUAL_MACHINE` is missing, the ho
 - **WHEN** the phone reboots or azula updates after the grant
 - **THEN** both permissions are still granted and no new pairing is needed
 
+### Requirement: Guided Android Host Setup
+Hosting SHALL have one entry point that checks, before downloading or requesting anything, whether the phone can host, and says why not if it can't. Sizes SHALL default from RAM and free space. The image download SHALL start when the user commits and run during the permission step. Every setup stage SHALL resume after process death, and setup SHALL reach Ready without further input once permission is granted.
+
+#### Scenario: Phone that can't host
+- **WHEN** a user opens hosting on a phone without non-protected AVF VMs, or with too little RAM or free space
+- **THEN** the first screen states the reason in one sentence, and nothing is downloaded or requested
+
+#### Scenario: Process death during setup
+- **WHEN** the app process is killed during the pairing step or the image download
+- **THEN** reopening hosting resumes at the same step, and a download continues from the bytes already verified
+
+#### Scenario: Handoff to a cloud session
+- **WHEN** a ready host's user taps "connect a cloud session"
+- **THEN** azula mints a short-lived grant and offers a copyable snippet. Pasted into a cloud session that allowlists the n0 relays, the snippet runs `azula compute exec` against this phone.
+
 ### Requirement: Android Host Lifecycle
 Hosting SHALL run in a foreground service with a visible notification that has a Stop action. The VM SHALL keep running when the app's activities are closed. Stopping hosting SHALL stop the broker and the VM. Jobs that were running when the VM stopped SHALL be reported as `interrupted` after the next start.
 
