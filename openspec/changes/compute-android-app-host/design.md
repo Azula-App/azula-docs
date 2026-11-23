@@ -244,7 +244,7 @@ is missing. Tapping **set up** also starts S3's download in the background.
 The card is a three-line checklist, each line with a `StatusDot`, and the
 app re-detects state every time it resumes.
 1. **"developer options".**
-   - If on, it's ticked already.
+   - If on, it's ticked already. On Android 17 the app reads `development_settings_enabled` as 0 even when it's on, so detection also checks whether Settings resolves the Developer options activity, which AOSP disables while they're off.
    - If off, it shows the button **open about phone** with the hint "tap
      build number 7 times, then come back". That's a deep link to
      `ACTION_DEVICE_INFO_SETTINGS`; an app can't toggle Developer
@@ -332,7 +332,7 @@ already on):
 8. send
 9. back to azula
 
-That's 9 deliberate taps plus typing the code. Ready follows without
+That's 9 deliberate taps plus typing the code. Turning Wireless debugging on also shows two system dialogs, "Allow wireless debugging?" and "on this network?" (measured 2026-11-23), so expect about 11. Ready follows without
 input. Turning on Developer options adds 7 taps on Build number plus
 navigation. Task 3.7 measures the real numbers.
 

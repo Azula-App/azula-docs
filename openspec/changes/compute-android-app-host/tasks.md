@@ -15,7 +15,10 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - `android/app` is its only Android product type; the generated Gradle project can't be customized; [KTC-5242](https://youtrack.jetbrains.com/issue/KTC-5242) is open.
     - What does work, verified on the Pixel 10a as `app.azula.spike`: an `android/app` with a `:vmhost` service plus `jniLibs/arm64-v8a/`. But Kotlin Toolchain forces uncompressed, unextracted native libs (`BundleConfig.pb` `uncompressNativeLibraries`, and `extractNativeLibs` is ignored). So exec of a bundled binary only worked after a one-byte AAB patch.
     - Sal chose (2026-11-22) **base APK plus a JNI broker** (design D3, D6) over the exec-plus-patch path, a separate Play app, a Gradle shell (1–2 weeks), or waiting on KTC-5242.
-- [ ] 1.2 Manifest additions in `android-app`: the two VM permissions, `FOREGROUND_SERVICE_SPECIAL_USE`, and the `specialUse` host service with `android:process=":vmhost"` and `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` (justification text in design D8). Verify with `aapt2 dump xmltree` on the built APK.
+- [x] 1.2 Manifest additions in `android-app`: the two VM permissions, `FOREGROUND_SERVICE_SPECIAL_USE`, and the `specialUse` host service with `android:process=":vmhost"` and `PROPERTY_SPECIAL_USE_FGS_SUBTYPE` (justification text in design D8). Verify with `aapt2 dump xmltree` on the built APK.
+  - 2026-11-23, azula-app main c2b85ec (29fa512):
+    - `aapt2 dump xmltree` shows both VM permissions, `FOREGROUND_SERVICE_SPECIAL_USE`, and `dev.azula.vmhost.HostService` with `process=":vmhost"`, `foregroundServiceType=specialUse` and the subtype property.
+    - The APK carries `lib/arm64-v8a/libazula_host.so` and `assets/seed.iso`. Both are gitignored outputs of `scripts/vmhost-artifacts.sh` (sibling build, or `--release` download pinned in `vmhost.version`).
 
 ## 2. azula-cli
 
@@ -34,11 +37,29 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 
 ## 3. The host in azula-app (base APK, `:vmhost`)
 
-- [ ] 3.1 Port the prototype's `HostService`, `Bridge`, `Proxy` and `Splice` to Kotlin, in new `vmhost-api`/`vmhost-real` modules (the api/real convention), running in `:vmhost` with a notification and a Stop action, and calling `libazula_host.so` instead of a child broker. Resolve the hidden API through `HiddenApiBypass`, with a capability check that disables hosting cleanly when it fails. Verify START reaches a reachable worker in under 20 s on the Pixel 10a after the first boot.
+- [x] 3.1 Port the prototype's `HostService`, `Bridge`, `Proxy` and `Splice` to Kotlin, in new `vmhost-api`/`vmhost-real` modules (the api/real convention), running in `:vmhost` with a notification and a Stop action, and calling `libazula_host.so` instead of a child broker. Resolve the hidden API through `HiddenApiBypass`, with a capability check that disables hosting cleanly when it fails. Verify START reaches a reachable worker in under 20 s on the Pixel 10a after the first boot.
+  - 2026-11-23, azula-app main c2b85ec (f96201a):
+    - **Modules:** `vmhost-api`, `vmhost-avf-stubs` (compile-only, not dexed), `vmhost-real` and `vmhost-testapp`, in package `dev.azula.vmhost`. The JNI class stays `app.azula.vmhost.AzulaHost`.
+    - **Cross-process state:** an atomic JSON file plus `FileObserver`. Mint, list and revoke go over a bound `Messenger`.
+    - **On the Pixel 10a as `app.azula.vmhost.test`:** first boot reached RUNNING at about 160 s. A later START had every `compute doctor` stage passing in **17 s**. `vm/e2e/cloud.sh` was ALL PASS relay-only.
+    - **Tests:** `vmhost-api` 19 and `vmhost-real` 16 pass.
+    - **Not covered here:** disk staging from external files until 3.2 lands; no automatic restart if the whole `:vmhost` process is killed (the UI shows an error).
 - [ ] 3.2 Image management: download `debian-13-generic-arm64.tar.xz`, verify it against `SHA512SUMS`, extract `disk.raw` with an xz decoder, and grow it to 16 GiB. Check free space first, and show progress. Ship `seed.iso` as an app asset. Verify a corrupted download is rejected and retried.
-- [ ] 3.3 The one-time grant: an embedded adb client for wireless-debugging pairing (a pairing code entered in a notification, then TLS) that runs `pm grant` for both permissions, with onboarding screens. Detect existing grants, and say which one is missing. Verify on a phone that has never been granted, with no computer attached.
+- [x] 3.3 The one-time grant: an embedded adb client for wireless-debugging pairing (a pairing code entered in a notification, then TLS) that runs `pm grant` for both permissions, with onboarding screens. Detect existing grants, and say which one is missing. Verify on a phone that has never been granted, with no computer attached.
+  - 2026-11-23: modules `selfgrant-api`, `selfgrant-real` and the `selfgrant-testapp` test app (`app.azula.selfgrant.test`), package `dev.azula.selfgrant`.
+    - **Implementation:** a pure-Kotlin port of BoringSSL's SPAKE2 (`spake25519.cc`, ISC). Tests regenerate the M and N points from their seeds and check RFC 8032 Ed25519. The adb client flow follows Shizuku's (Apache-2.0) as reference. 36 JVM tests pass.
+    - **On the Pixel 10a (Android 17), with neither permission granted and no USB adb grant:**
+      - the pairing service is found about 1.8 s after the Settings dialog opens;
+      - after the code is entered by notification reply, pairing takes 0.4 s and the grant is done about 2 s later;
+      - `dumpsys` then shows both `granted=true`.
+    - **Resume:** after `kill -9` mid-flow (phase AwaitingCode), the sticky service restarted and re-prompted about 2 s later, then finished.
+    - **`pm grant` kills the app process** (gid change). The restarted service detects both grants and finishes.
 - [ ] 3.4 The grant UI: mint, copy and QR-code a compute grant, list grants, and revoke them, through the JNI broker's `mintGrant`/`listGrants`/`revoke`. Verify a minted token works from the Mac relay-only.
 - [ ] 3.5 Find out whether turning Developer options off revokes the grants (design open question). Record the result here and in the onboarding copy.
+  - 2026-11-23, from source (not device-tested, because turning Developer options off on the test phone would cut USB adb):
+    - **Not revoked.** `PermissionManagerServiceImpl` keeps previously granted `development`-flag permissions (`bp.isDevelopment() && origState.isPermissionGranted`).
+    - Settings' `DevelopmentSettingsDashboardFragment.disableDeveloperOptions()` only flips the global setting and calls each controller's `onDeveloperOptionsDisabled`.
+    - Onboarding can say "you can turn developer options and wireless debugging off now", pending one device confirmation by someone at the phone.
 - [ ] 3.6 The setup flow, exactly as design D9 (approved by Sal 2026-11-22):
   - S0, the single entry;
   - S1, the capability check with defaults and the "advanced" panel;
