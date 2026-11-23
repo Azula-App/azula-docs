@@ -68,13 +68,14 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
       - `dumpsys` then shows both `granted=true`.
     - **Resume:** after `kill -9` mid-flow (phase AwaitingCode), the sticky service restarted and re-prompted about 2 s later, then finished.
     - **`pm grant` kills the app process** (gid change). The restarted service detects both grants and finishes.
-- [ ] 3.4 The grant UI: mint, copy and QR-code a compute grant, list grants, and revoke them, through the JNI broker's `mintGrant`/`listGrants`/`revoke`. Verify a minted token works from the Mac relay-only.
+- [x] 3.4 The grant UI: mint, copy and QR-code a compute grant, list grants, and revoke them, through the JNI broker's `mintGrant`/`listGrants`/`revoke`. Verify a minted token works from the Mac relay-only.
+  - 2026-11-23, azula-app main a62e4cc (S4/S5 of the setup flow). On the Pixel 10a as `app.azula.dev`: a token minted in S5 passed every `compute doctor` stage relay-only and ran `compute exec -- uname -a`. After revoke in S4, the same token failed at auth with "unauthorized".
 - [ ] 3.5 Find out whether turning Developer options off revokes the grants (design open question). Record the result here and in the onboarding copy.
   - 2026-11-23, from source (not device-tested, because turning Developer options off on the test phone would cut USB adb):
     - **Not revoked.** `PermissionManagerServiceImpl` keeps previously granted `development`-flag permissions (`bp.isDevelopment() && origState.isPermissionGranted`).
     - Settings' `DevelopmentSettingsDashboardFragment.disableDeveloperOptions()` only flips the global setting and calls each controller's `onDeveloperOptionsDisabled`.
     - Onboarding can say "you can turn developer options and wireless debugging off now", pending one device confirmation by someone at the phone.
-- [ ] 3.6 The setup flow, exactly as design D9 (approved by Sal 2026-11-22):
+- [x] 3.6 The setup flow, exactly as design D9 (approved by Sal 2026-11-22):
   - S0, the single entry;
   - S1, the capability check with defaults and the "advanced" panel;
   - S2, the checklist, with:
@@ -89,11 +90,38 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
   - the D9 error table.
 
   Each step persists its state and resumes after process death. Use the existing surface recipes and `*StepContent` pattern, with copy in the azula voice. Verify with Compose UI tests in the `-mock` app for every screen and error state, plus a process-death test on the Pixel for S2 and S3.
-- [ ] 3.7 Measure setup on the Pixel 10a.
+  - 2026-11-23, azula-app main a62e4cc.
+    - **Code:** `shared/src/dev/azula/ui/host/` (S0–S5) and `HostSetupService`. `VmHost`, `VmPermissionGranter` and `HostPlatform` are bound for Android only; JVM and iOS show no entry.
+    - **Hidden in release builds:** the entry shows only in debuggable builds, or after 7 taps on the "profiles & settings" title (labs). That's why there's no CHANGELOG entry yet.
+    - **Tests:** 54 new (18 `HostSetupServiceTest`, 36 Compose `HostComputeUiTest`) cover every screen and error-table state. `./check` is green.
+    - **Device (`app.azula.dev`, Pixel 10a):** "set up" to Ready took 4 min 50 s, about 13 taps, with no input after the grant. Download and unpack (about 1 min) ran in parallel with S2. The grant came about 6 s after the code, and first boot to RUNNING took about 2.5 min.
+    - **Gid kill:** the `pm grant` killed the app and `:vmhost`. The sticky service resumed, and "done — back to azula" landed on the right step.
+    - **Deviations:**
+      - `VmHost.setPlanOverride` was added so "advanced" can reach the VM.
+      - Retry is two automatic attempts, then a button.
+      - S2's checklist stays visible, all ticked, until Ready.
+- [x] 3.7 Measure setup on the Pixel 10a.
   - **Starting state:** a fresh install under a non-`app.azula` id (e.g. `app.azula.debug`), both VM permissions not granted, Wireless debugging with no paired devices, no computer used for any step. adb stays attached only to record.
   - **Record:** time and deliberate taps from the first "host compute on this phone" to Ready. Measure once with Developer options already on, excluding download time, which is recorded separately. Add the 7-tap Build-number path as a note.
   - **Evidence:** a screen recording (`adb shell screenrecord`) or a screenshot per step, kept with the change. Send the result to Sal with SendUserFile.
   - **Target:** about 2 minutes and about 10 taps. Over that, the flow gets another pass before 4.1.
+  - 2026-11-23, Pixel 10a, `app.azula.dev` built from azula-app main plus the fix below.
+    - **Starting state:** data cleared, both grants revoked, notifications allowed at first launch, Developer options on, Wireless debugging off with no azula pairing. USB adb stayed attached only to drive input and record.
+    - **Result: 3 min 58 s and 11 taps to Ready, 12 with the optional "done — back to azula". Over target.** Contact sheet: [`design-pages/setup-3.7-contact-sheet.jpg`](design-pages/setup-3.7-contact-sheet.jpg); home-network identifiers are redacted. The screen recording went to Sal and isn't committed, because it shows the home Wi-Fi's SSID and BSSID.
+    - **Hands-on:** 1 min 32 s from the entry tap to sending the code; the grant was held 0.5 s later. About 40 s of that is the driver pausing to read the screen.
+    - **Taps:** host compute → set up → open wireless debugging → the Wireless debugging row → its toggle → OK → allow on this network → pair device with pairing code → pull down the shade → enter code (and type 6 digits) → send. The 12th, "done", only brings the user back: the VM had started 2 s after the grant.
+    - **Download** (recorded separately, overlapped with the permission steps): 286 MB in 17.0 s, verify 0.4 s, unpack 64.7 s. The image was ready 82.5 s after "set up", 4.8 s before the grant. It wasn't on the critical path here, but it would be for a faster user.
+    - **First boot:** 143.6 s from `run()` to RUNNING. 121.6 s of it (guest uptime 9.8 s → 131.4 s) is `systemd-networkd-wait-online` timing out. The guest has no NIC, and the seed masks that unit only in cloud-final, after the first boot has already paid for it. Without the stall, first boot is about 22 s and the total about 2 minutes.
+    - **Bug found and fixed** (azula-app `1140393`): the self-grant flow and the host service shared notification id 7301. The host re-posts it on every download-progress tick, so the code prompt was replaced within about 1.5 s. Run 1 stalled at step 8 because of it; any user whose download was still running would have too. The 3.6 walkthrough missed it because its download had finished first. The same commit keeps the pairing code out of logcat.
+    - **Other findings:**
+      - Settings opens Developer options with the Wireless debugging row in view, not the subpage. Android 17 exports no entry to the subpage (`:settings:show_fragment` is ignored), so step 4 stays.
+      - The heads-up "enter code" is tappable over the pairing dialog, which saves step 9 for a quick user.
+      - "done" arrives 12 s after the grant, because of Android's restart backoff for the killed self-grant service. It doesn't delay Ready.
+      - Denying notifications at first launch adds 2 taps (from the 3.6 walkthrough). Developer options off adds 7 Build-number taps, plus the PIN and the trip to About phone.
+- [ ] 3.8 A second pass on setup before 4.1, because 3.7 was over target.
+  - Remove the first-boot `wait-online` stall (about 2 min). The guest's network config should satisfy or skip `systemd-networkd-wait-online` from cloud-init's init-local stage (for example through the NoCloud `network-config`), not mask it in cloud-final. Verify: first boot under 30 s on the Pixel, and no `wait-online` timeout in the console log.
+  - Once that's gone, unpack (65 s) becomes the critical path for a fast user. Consider extracting while downloading, or a faster codec.
+  - Re-measure as in 3.7. The target is unchanged.
 
 ## 4. Play
 
