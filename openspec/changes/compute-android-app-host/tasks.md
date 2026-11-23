@@ -44,7 +44,21 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - **On the Pixel 10a as `app.azula.vmhost.test`:** first boot reached RUNNING at about 160 s. A later START had every `compute doctor` stage passing in **17 s**. `vm/e2e/cloud.sh` was ALL PASS relay-only.
     - **Tests:** `vmhost-api` 19 and `vmhost-real` 16 pass.
     - **Not covered here:** disk staging from external files until 3.2 lands; no automatic restart if the whole `:vmhost` process is killed (the UI shows an error).
-- [ ] 3.2 Image management: download `debian-13-generic-arm64.tar.xz`, verify it against `SHA512SUMS`, extract `disk.raw` with an xz decoder, and grow it to 16 GiB. Check free space first, and show progress. Ship `seed.iso` as an app asset. Verify a corrupted download is rejected and retried.
+- [x] 3.2 Image management: download `debian-13-generic-arm64.tar.xz`, verify it against `SHA512SUMS`, extract `disk.raw` with an xz decoder, and grow it to 16 GiB. Check free space first, and show progress. Ship `seed.iso` as an app asset. Verify a corrupted download is rejected and retried.
+  - 2026-11-23, azula-app main 8f94075.
+    - **API:** `VmHost.provision()` (idempotent, resumable, ends RUNNING), and `HostPhase.PROVISIONING` with `ProvisionStep`, byte progress and `retryable`.
+    - **Tests:** vmhost-api 24 and vmhost-real 45. These include a local-HTTP end-to-end test for drop, resume, tamper and low space.
+    - **On the Pixel 10a** (fresh `app.azula.vmhost.test`):
+
+      | Step | Time |
+      |---|---|
+      | Download, 300 MB | 17.6 s (about 17 MB/s) |
+      | Verify | 0.4 s |
+      | Extract to 1.17 GB, sparse, 16 GiB apparent | 64 s |
+      | First boot to RUNNING | 142 s |
+
+    - **Resume and tamper:** a `kill -9` at about 112 MB resumed from the `.part` offset. A tampered `.part` failed SHA-512 and redownloaded from 0. `compute doctor` passed relay-only.
+    - **For 3.6:** `pm grant` of these permissions kills the whole app, including `:vmhost` ("changed gids"). `HostService` is `START_STICKY` until setup is complete, so it resumes after the kill (verified after `kill -9`, not yet after a real grant). The UI should also call `provision()` on resume.
 - [x] 3.3 The one-time grant: an embedded adb client for wireless-debugging pairing (a pairing code entered in a notification, then TLS) that runs `pm grant` for both permissions, with onboarding screens. Detect existing grants, and say which one is missing. Verify on a phone that has never been granted, with no computer attached.
   - 2026-11-23: modules `selfgrant-api`, `selfgrant-real` and the `selfgrant-testapp` test app (`app.azula.selfgrant.test`), package `dev.azula.selfgrant`.
     - **Implementation:** a pure-Kotlin port of BoringSSL's SPAKE2 (`spake25519.cc`, ISC). Tests regenerate the M and N points from their seeds and check RFC 8032 Ed25519. The adb client flow follows Shizuku's (Apache-2.0) as reference. 36 JVM tests pass.
