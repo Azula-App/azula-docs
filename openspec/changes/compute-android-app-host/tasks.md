@@ -173,7 +173,21 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
   - **Runner** (2026-11-24, azula-app dd12cbf, `vmhost-ftl/`): a stub app is the instrumented package; `app.azula.vmhost.test` is the separate package that gets the grants, because `pm grant` kills the granted app's processes. Its README has the Test Lab commands.
     - Proven on the emulator (API 36): it installs and runs end to end, the grants reach only the host app, the gid kill is observed, the static arm64 `azula` runs from the device shell, and it reports `CANNOT_HOST` (the emulator has no AVF). Against a simulated host it also proves the pass, retry, hang and dead-broker paths.
     - Unproven until Test Lab runs it: AVF boot, RUNNING, doctor and exec on Pixel 8, 9 and 11, and whether Test Lab allows `pm grant` from its shell and pulls the report (the runner writes to `/sdcard/Download/vmhost-ftl`).
-    - Stays within Test Lab's free daily quota; nothing billable, and no billing account.
+    - Stays within Test Lab's free daily quota (3 of the 5 physical-device runs a day used); nothing billable, and no billing account.
+  - **Results, 2026-11-24 (commands and harness as in `vmhost-ftl/README.md`, azula-app dd12cbf, azula-cli b503c07 with the seed of aac8fe9): boot, `doctor` and `exec` passed on 3 of 3**, each with `requireHost=true`, so a pass is a real VM: RUNNING reached, `compute doctor` passed every stage relay-only, and `exec -- uname -a` ran in the guest.
+  - **Not run: `cloud.sh`.** The harness runs `doctor` and one `exec` from the phone's own shell. These steps of `cloud.sh` haven't run on these phones: exit codes and separate streams, reattach after a drop, resumable push and pull, pushing and building a source tree, detach and logs, a killed client, and timeouts. That's why this task is still open.
+
+    | Device | SoC | Android | Image download (Test Lab network) | First boot to RUNNING, tools in | Start to RUNNING |
+    |---|---|---|---|---|---|
+    | Pixel 8 | Tensor G3 | 16 (API 36) | 44 s | 86.5 s | 140 s |
+    | Pixel 9 | Tensor G4 | 16 (API 36) | 25.7 s | 69.1 s | 104 s |
+    | Pixel 11 | Tensor G6 | 17 (API 37) | 167 s | 113.2 s | 290 s |
+
+    - After the download and its hash check, setup waited 0.0 s for the streaming native unpack on all three (1119 MB unpacked; 0.6 to 3.7 s of it syncing), so the download set the pace. `pm grant` from Test Lab's shell works and kills the granted app, as on the 10a. On all three the log has "tools are in" first and RUNNING after it.
+    - Doctor, relay-only: dial 47 to 107 ms, auth 74 to 108 ms, guest 224 to 304 ms.
+    - The Pixel 11's download took 167 s. The cause (network, mirror or phone) wasn't measured.
+    - The Pixel 8 ran a `user`, release-keys build. The other two reports weren't checked for it.
+  - **The un-hide gate (Pixel 8, 9, 10a and 11) is not met yet.** Pixel 8, 9 and 11 are missing the `cloud.sh` steps above. The 10a hasn't run the Ready gate, the native unpack or the current seed (3.8's re-measure). Pixel 6 and 7 stay unverified.
     - Note (from Google's pages, not re-checked): Test Lab is deprecated, with a shutdown date of 2027-09-30.
 
 ## Workflow follow-up
