@@ -101,6 +101,11 @@ NDK, from a new azula-cli crate that reuses the `compute` broker code.
 - `stop()`, `mintGrant(ttl, label) → token`, `listGrants()` and
   `revoke(id)` cover the rest.
 
+The same library carries a second, independent class, `NativeXz`: a
+pull-based, threaded liblzma decoder that unpacks the guest image while it
+downloads (D9 S3). It's bounds-checked, contains panics, and falls back to
+the Java decoder when the library doesn't load.
+
 Benefits:
 - It needs no exec and no AAB patch.
 - There's one fewer phantom process.
@@ -279,7 +284,8 @@ app re-detects state every time it resumes.
 - **What runs:** a progress foreground notification plus an in-app
   stepper:
   1. downloading debian · 0.4 GB (resumable over HTTP ranges, checked
-     against `SHA512SUMS`);
+     against `SHA512SUMS`), and unpacking it meanwhile with a threaded native
+     xz decoder in `libazula_host.so` (`NativeXz`);
   2. preparing disk;
   3. first boot · installing tools (about 2 min). Ready waits for the
      seed to report its tool install, so a cloud session connected at Ready

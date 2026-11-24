@@ -139,6 +139,12 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
       - Grant at +44.5 s. Download 17.6 s, then unpack, which the grant's gid kill interrupted 21.5 s in. The unpack restarted from zero and took 64.0 s. Then boot to login 24.8 s, and tools 49.5 s (rc=0).
       - At 3.7's hands-on pace (grant at +93 s, image ready first), Ready would be about **2 min 50 s**, against 3.7's 3 min 58 s before tools, or about 5 min 33 s with them.
       - Doctor passed every stage relay-only. A job saw git 2.47.3 and gcc 14.2, and the guest clock matched UTC. A revoked token got `unauthorized`.
+    - **Second pass, 2026-11-23, not yet re-measured on the phone** (the morning's re-measure fills this in):
+      - **Unpack while downloading, natively** (azula-cli b503c07, azula-app e3774ac): a threaded liblzma decoder in `libazula_host.so` (`NativeXz`) decodes the archive as it downloads, so the unpack isn't on the critical path, and a gid kill re-decodes from disk in seconds instead of restarting a 64 s unpack. SHA-512 is checked on the bytes that were decoded, before the disk is used. Falls back to the Java decoder. On the Mac, with a 17.6 s simulated download, the disk is ready 0.2 to 0.8 s after the last byte.
+      - **apt stall found and fixed** (azula-cli 2570088). Debian's CDN stops answering pipelined HTTP requests, and apt's default depth of 10 made it wait out its 30 s read timeout about half the time, in `apt-get update` and in the package download. It reproduces from any machine: from this Mac over IPv4 and IPv6, with no azula in the path. The seed sets pipeline depth 0, and drops translations, pdiffs and source lists. `apt-get update` went from 8 to 39 s to 5 to 9 s; the 64-package download from 38 to 46 s to 7 to 22 s. The same fix helps every job's `apt-get`.
+      - **The tool install** also skips recommends, per-file fsync and the man-db index. Those save about 6 s of dpkg; its 23 s floor is xz decompression.
+      - **A download of an image Debian replaces mid-way no longer gets stuck** (azula-app 40d595f): it starts over instead of failing every retry.
+      - Verified without the phone: 90 vmhost-real tests and the full `./check`; 18 Rust decoder tests; the tuned seed boots in QEMU with a NIC and provisions `rc=0` with the tools in 17 s.
     - **Still over the 2-minute target, and it can't be reached by tuning.** From "set up", image prep takes about 82 s and boot plus tools about 74 s, one after the other, so Ready can't come before about 2 min 40 s. What's left is a choice for Sal: pre-baked tools, a faster image codec, deferring `pm grant` until the image is ready (which avoids the restarted unpack), or Ready before the tools behind a job gate.
 
 ## 4. Play
@@ -147,6 +153,7 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
   - Prep done 2026-11-23, nothing uploaded:
     - targetSdk is 36, confirmed in `android-app/module.yaml`. The manifest's `specialUse` services have subtype strings.
     - The declaration text for both services is in [`design-pages/play-declaration.md`](design-pages/play-declaration.md).
+    - Release builds failed R8 on main since the host modules landed: the AVF classes are compile-only stubs, so R8 reported them missing. Fixed in azula-app b8fbbea (`android-app/proguard-rules.pro`); `./kotlin build -m android-app -v release` passes, and the JNI class with its native methods and both services keep their names. Not yet run on a phone as a release build.
     - A draft demo video exists (3.7 recording, network names masked). The final one is re-recorded on the shipping build. Uploading and the video link are Sal's.
 - [ ] 4.2 Review the pre-launch report's non-SDK warnings, and record them.
 
@@ -154,7 +161,12 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 
 - [ ] 5.1 Run `vm/e2e/cloud.sh` from a Claude Code cloud sandbox (`azula-cli` environment) against the feature build on the Pixel 10a, with the Terminal app not running. Record the timings here.
 - [ ] 5.2 Soak overnight, unplugged with the screen off: a job heartbeats every minute. Record gaps, battery drain and thermal status.
+  - Prepared 2026-11-23: `vm/e2e/phone-soak.py` (azula-cli 37a9d4d). It starts the heartbeat job, samples battery, temperature, thermal status, Doze state and the VM process over wireless adb, probes `compute doctor` over the relay, and reports gaps (a paused VM apart from a slow one). Dry-run on the Pixel 10a: 12 of 12 heartbeats, 4 of 4 samples, 4 of 4 probes.
 - [ ] 5.3 Run the boot and `cloud.sh` matrix on a Pixel 6 or 7 and a Pixel 8 or 9, Android 16 and 17.
+  - Blocked on Sal, 2026-11-23: Firebase Test Lab (Sal's choice).
+    - The gcloud default project is `azula-release`. The Testing and ToolResults APIs aren't enabled on it, and billing is off.
+    - Test Lab has no Pixel 6 or 7 above API 33, below minSdk 34. It has Pixel 8 and 9 at API 34 to 36, Pixel 10 at API 36, and Pixel 11 at API 37 (Android 17). The task's Pixel 6 or 7 can't run there.
+    - Nothing enabled, created or billed.
 
 ## Workflow follow-up
 
