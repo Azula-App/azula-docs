@@ -376,10 +376,11 @@ navigation. Task 3.7 measures the real numbers.
 - **[The VM dies with the host process]** (phantom processes). Run it in
   `:vmhost`, and report `interrupted` jobs at the next start.
 - **[The seed's worker runs as root.]** The AVF guest's worker is started as
-  root with `--run-as azula`. Exec children run as `azula`, but single-file
-  push and pull open files as root. The job user has passwordless sudo in this
-  guest, so it's no new privilege, and it wasn't tightened here. The local
-  backend (`compute-local-backend`) runs its worker as the job user instead.
+  root with `--run-as azula`. Exec children, and since azula-cli 67ff0b1
+  (2026-11-24) put, get and a job's `cwd` too, act with the job user's
+  credentials, so a transfer reaches what a job can. The job user has
+  passwordless sudo in this guest, so none of that is a boundary here. The
+  local backend (`compute-local-backend`) runs its worker as the job user.
 - **[Wireless debugging needs Wi-Fi]** for the one-time pairing. Document
   it, with computer adb as the alternative.
 

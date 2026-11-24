@@ -18,16 +18,21 @@ and charging state recorded.
 ## 3. Remaining findings (each: measure, then change, or drop)
 
 - [ ] 3.1 Proxy pump: separate direct-Android from proxied-guest throughput on the same Pixel against a fixed LAN origin first. Then try `Splice.kt` at 64 and 128 KiB (now 16 KiB, with a flush per chunk) and `recv_into` in `vm/avf-seed/azula-vsock-proxy`.
-- [ ] 3.2 `HostService.kt` `stageSeed()` copies `seed.iso` on every START: stage by content identity and reuse the verified copy; consider overlapping broker binding with AVF creation where a trace shows it helps.
+- [x] 3.2 `HostService.kt` `stageSeed()` copies `seed.iso` on every START.
+  - 2026-11-24: not worth doing. The seed is 900 KB. Overlapping broker binding with AVF creation is still open, if a START trace shows it on the critical path.
 - [ ] 3.3 Client endpoint reuse across a session (`src/compute/client.rs` `dial`): one retained Dialer per session and relay, a fresh authenticated connection per request. Verify expiry and revocation between and during commands. No wire change.
 - [ ] 3.4 `src/compute/transfer.rs` pull ignores the final flush result and renames without `sync_all` or a parent sync. Durability fix, measured separately.
-- [ ] 3.5 Grant watcher polls every 2 s, a quiet attached follower wakes every 1 s, guest timesync goes to the internet every 5 min: measure idle battery cost first, then decide.
+- [ ] 3.5 Grant watcher polls every 2 s and guest timesync goes to the internet every 5 min: measure idle battery cost first, then decide.
+  - 2026-11-24: a quiet attached follower no longer wakes every second (azula-cli 34b5dda).
 - [ ] 3.6 Single-file push framing copies and the push prehash before dialing (`transfer.rs` ~340, ~485; `frame.rs`).
 - [ ] 3.7 Build parallelism (`-j`) and the memory ceiling: AVF uses MATCH_HOST, and the UI allows 1.5x the half-RAM default. Sweep `-j` on the phone with RAM fixed.
+  - 2026-11-24: the host enforces that ceiling for a stored override too (azula-app 106139e). The ceiling on the 10a is 5376 MB, the setting at which lmkd killed the Terminal VM; whether to lower it is a decision for Sal after the sweep.
 
 ## 4. Hardening, not performance
 
-- [x] 4.1 In the AVF seed the guest worker runs as root with `--run-as azula`, so single-file push and pull open files as root. The job user has passwordless sudo in that guest, so it is no new privilege.
-  - 2026-11-23: kept as is; the trade-off is recorded in `compute-android-app-host` design.md (azula-docs 84bf733).
+- [x] 4.1 In the AVF seed the guest worker runs as root with `--run-as azula`, so single-file push and pull opened files as root.
+  - 2026-11-23: first kept as is, because the job user has passwordless sudo there.
+  - 2026-11-24: changed, at Sal's request to incorporate the audit (azula-cli 67ff0b1). Put, get and a job's `cwd` use the job user's credentials; the state dir is 0700. 12 of 12 root tests pass in a QEMU Debian 13 VM and fail against the old code. Two holes were found while doing it and fixed with it: a job's `cwd` was entered as root, and jobs could read the worker's state. Not yet run on a phone or in a Mac VM.
+  - User-visible: pushing to a place only root can reach is now `io_error`; use `exec` with `sudo`.
 - [x] 4.2 Ready accepted a failed tool install (any `provision rc=` counted, and so did the 15-minute backstop).
   - 2026-11-23: fixed under `compute-android-app-host` 3.8 (azula-app 3255df0, azula-cli aac8fe9): only a verified rc=0 counts, and a failed or missing report is a retryable error. Not yet run on a phone.
