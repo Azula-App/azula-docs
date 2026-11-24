@@ -27,5 +27,7 @@ and charging state recorded.
 
 ## 4. Hardening, not performance
 
-- [ ] 4.1 In the AVF seed the guest worker runs as root with `--run-as azula`, so single-file push and pull open files as root. The job user has passwordless sudo in that guest, so it's no new privilege, but the local-backend findings say the worker should run as the job user. Decide, and record the decision in `compute-android-app-host` design.md.
-- [ ] 4.2 Ready accepts a failed tool install (`HostService.kt` ~472: any `provision rc=` counts, and so does the 15-minute backstop). Tracked under `compute-android-app-host` 3.8, sent 2026-11-23, not fixed here; check it off when 3.8 lands.
+- [x] 4.1 In the AVF seed the guest worker runs as root with `--run-as azula`, so single-file push and pull open files as root. The job user has passwordless sudo in that guest, so it is no new privilege.
+  - 2026-11-23: kept as is; the trade-off is recorded in `compute-android-app-host` design.md (azula-docs 84bf733).
+- [x] 4.2 Ready accepted a failed tool install (any `provision rc=` counted, and so did the 15-minute backstop).
+  - 2026-11-23: fixed under `compute-android-app-host` 3.8 (azula-app 3255df0, azula-cli aac8fe9): only a verified rc=0 counts, and a failed or missing report is a retryable error. Not yet run on a phone.
