@@ -66,8 +66,12 @@ feature, so it shows both the grant and the hosting service.
 - **Draft (2026-11-23):** about 83 s, built from the 3.7 recording, with the
   Wi-Fi name, router address, mDNS names and Mac hostname masked. It still
   shows the old "about 4 min" copy.
-- **Final:** re-recorded on the build that ships, then masked with the same
-  script (`demo/make-demo.sh`, kept with the recordings, not in the repo).
+- **Final (2026-11-24):** 103 s, recorded on the un-hide release build with the id
+  `app.azula.dev`. It follows the shot list below and ends with the app saying "not
+  hosting". The azula code, Wi-Fi name, addresses, paired devices and token block are
+  blacked out, and OCR of every frame finds none of them. The recordings and the
+  `make-demo-final.py` that cut it stay with the session's files, not in the repo.
+  Re-record it if the setup UI changes before the release.
 - The link itself has to be made by Sal, for example an unlisted video.
 
 Shot list, in order:

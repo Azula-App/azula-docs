@@ -183,7 +183,9 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
       - Hosting off and on again: off stops the VM, on is `running` 20 s later with the tools still in.
       - `cloud.sh` was not run on the release variant (it passed on the debug build, 3.8).
     - **Release CI doesn't package the native library or the seed** (found 2026-11-24): `publish.yml` never runs `scripts/vmhost-artifacts.sh`, and the pinned azula-cli 0.4.2 predates the assets. A v0.0.10 cut today would ship the entry with host compute broken. Needed before the tag: an azula-cli release that carries them (a version tag, Sal's go-ahead), the `vmhost.version` bump, and a fetch step that fails the build if the AAB has neither (done on the un-hide branch, not landed; tested against a fake release: fetch, missing asset, bad checksum).
-    - A draft demo video exists (3.7 recording, network names masked). The final one is re-recorded on the shipping build. Uploading and the video link are Sal's.
+    - **The final demo video is recorded** (2026-11-24, 103 s, un-hide release build, `app.azula.dev`): the declaration's shot list, with network names, addresses, paired devices, azula code and token blacked out and every frame checked by OCR. Uploading it and the link are Sal's.
+    - **Un-hide release build on the phone** (2026-11-24, branch not landed): the entry shows on a fresh install with no gesture, on the Home card and in Settings.
+    - **Found while recording:** after Stop, the notification and the host screen say "hosting · running" until the teardown ends (9.0 s in one run, at least 14 s in another). Cosmetic, not fixed here.
 - [ ] 4.2 Review the pre-launch report's non-SDK warnings, and record them.
 
 ## 5. Verification
