@@ -174,7 +174,14 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
   - Prep done 2026-11-23, nothing uploaded:
     - targetSdk is 36, confirmed in `android-app/module.yaml`. The manifest's `specialUse` services have subtype strings.
     - The declaration text for both services is in [`design-pages/play-declaration.md`](design-pages/play-declaration.md).
-    - Release builds failed R8 on main since the host modules landed: the AVF classes are compile-only stubs, so R8 reported them missing. Fixed in azula-app b8fbbea (`android-app/proguard-rules.pro`); `./kotlin build -m android-app -v release` passes, and the JNI class with its native methods and both services keep their names. Not yet run on a phone as a release build.
+    - Release builds failed R8 on main since the host modules landed: the AVF classes are compile-only stubs, so R8 reported them missing. Fixed in azula-app b8fbbea (`android-app/proguard-rules.pro`); `./kotlin build -m android-app -v release` passes, and the JNI class with its native methods and both services keep their names. Run on the Pixel 10a as a release build on 2026-11-24 (below).
+    - **Release-build smoke test, Pixel 10a, 2026-11-24** (release variant of azula-app 3255df0 with the id `app.azula.dev`, signed with the local debug key, from cleared data; not debuggable, targetSdkVersion 36):
+      - The entry was hidden until seven taps on the Settings title, as designed for the hidden state.
+      - Full setup, entry tap to "hosting · running": at most 1 min 53 s, by polling the screen (the same phases as runs 4 and 5 in 3.8). R8 broke nothing in the hidden-API, JNI or service code.
+      - Over the relay: `doctor` passed every stage including the guest, `exec` saw git 2.47.3, gcc 14.2, make, file and a clock within 2 s of UTC, and 256 KiB pushed and pulled back identical. The grant was minted, revoked and got `unauthorized`.
+      - Hosting off and on again: off stops the VM, on is `running` 20 s later with the tools still in.
+      - `cloud.sh` was not run on the release variant (it passed on the debug build, 3.8).
+    - **Release CI doesn't package the native library or the seed** (found 2026-11-24): `publish.yml` never runs `scripts/vmhost-artifacts.sh`, and the pinned azula-cli 0.4.2 predates the assets. A v0.0.10 cut today would ship the entry with host compute broken. Needed before the tag: an azula-cli release that carries them (a version tag, Sal's go-ahead), the `vmhost.version` bump, and a fetch step that fails the build if the AAB has neither (done on the un-hide branch, not landed; tested against a fake release: fetch, missing asset, bad checksum).
     - A draft demo video exists (3.7 recording, network names masked). The final one is re-recorded on the shipping build. Uploading and the video link are Sal's.
 - [ ] 4.2 Review the pre-launch report's non-SDK warnings, and record them.
 
