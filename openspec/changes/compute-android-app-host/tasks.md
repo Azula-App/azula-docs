@@ -170,7 +170,11 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 - [ ] 5.3 Run the boot and `cloud.sh` matrix on Firebase Test Lab: Pixel 8 and Pixel 9 on Android 16 (API 36), and Pixel 11 on Android 17 (API 37). The Pixel 10a (API 37) is already covered by the tasks above.
   - **Sal's choices (2026-11-23):** Test Lab; enable the Testing and ToolResults APIs on the `azula-release` project and nothing else; the matrix above. Pixel 6 and 7 are recorded as **unverified**: Test Lab has them only at API 33 and below, under minSdk 34. The un-hide gate (design, Migration Plan) is therefore Pixel 8, 9, 10a and 11.
   - **Found:** the gcloud default project is `azula-release`; billing is off, and both APIs were off. Test Lab has Pixel 8 and 9 at API 34 to 36, Pixel 10 at API 36, Pixel 11 at API 37.
-  - The runner (in progress): a stub app is the instrumented package; `app.azula.vmhost.test` is the separate package that gets the grants, because `pm grant` kills the granted app's processes. Stays within Test Lab's free daily quota; nothing billable.
+  - **Runner** (2026-11-24, azula-app dd12cbf, `vmhost-ftl/`): a stub app is the instrumented package; `app.azula.vmhost.test` is the separate package that gets the grants, because `pm grant` kills the granted app's processes. Its README has the Test Lab commands.
+    - Proven on the emulator (API 36): it installs and runs end to end, the grants reach only the host app, the gid kill is observed, the static arm64 `azula` runs from the device shell, and it reports `CANNOT_HOST` (the emulator has no AVF). Against a simulated host it also proves the pass, retry, hang and dead-broker paths.
+    - Unproven until Test Lab runs it: AVF boot, RUNNING, doctor and exec on Pixel 8, 9 and 11, and whether Test Lab allows `pm grant` from its shell and pulls the report (the runner writes to `/sdcard/Download/vmhost-ftl`).
+    - Stays within Test Lab's free daily quota; nothing billable, and no billing account.
+    - Note (from Google's pages, not re-checked): Test Lab is deprecated, with a shutdown date of 2027-09-30.
 
 ## Workflow follow-up
 
