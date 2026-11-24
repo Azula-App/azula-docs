@@ -165,8 +165,16 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 ## 5. Verification
 
 - [ ] 5.1 Run `vm/e2e/cloud.sh` from a Claude Code cloud sandbox (`azula-cli` environment) against the feature build on the Pixel 10a, with the Terminal app not running. Record the timings here.
-- [ ] 5.2 Soak overnight, unplugged with the screen off: a job heartbeats every minute. Record gaps, battery drain and thermal status.
+- [x] 5.2 Soak overnight, unplugged with the screen off: a job heartbeats every minute. Record gaps, battery drain and thermal status.
   - Prepared 2026-11-23: `vm/e2e/phone-soak.py` (azula-cli 37a9d4d). It starts the heartbeat job, samples battery, temperature, thermal status, Doze state and the VM process over wireless adb, probes `compute doctor` over the relay, and reports gaps (a paused VM apart from a slow one). Dry-run on the Pixel 10a: 12 of 12 heartbeats, 4 of 4 samples, 4 of 4 probes.
+  - **Result, 2026-11-24 (Pixel 10a, Android 17, wireless adb, unplugged in all 61 samples):**
+    - **Build:** the dev build installed 2026-11-23 10:32 CST. It predates the Ready gate, the native unpack and the current seed. Its broker code is the same as main's (b503c07 moved it to another file); the provisioning and Ready code is not. The soak hasn't run on the build that ships.
+    - **Heartbeats:** 666 from 04:07Z to 15:12Z (11.1 h), 0 missing, longest interval 61 s. Guest clock: 39924 s of wall time against 39924.6 s of uptime, so the VM never paused.
+    - **Reachability:** `compute doctor` relay-only passed 61 of 61; adb was lost in none; the VM process was there in 61 of 61.
+    - **Idle window, 05:07Z to 14:07Z (9.0 h, 55 samples, screen off, deep Doze IDLE in all):** 541 heartbeats, longest interval 61 s; battery 85% to 67% (2.0% an hour); battery temperature 21.6 to 24.1 C; thermal status 0 throughout; `doctor` 55 of 55, median 2.36 s, 95th percentile 4.4 s, longest 5.0 s.
+    - **The first hour doesn't count as idle.** From 04:07Z to about 05:00Z the agent ran apt benchmarks in the same VM and toggled the screen: battery 88% to 85%. The heartbeats ran through it without a gap.
+    - Sampling stopped at 14:07Z. From 14:07Z to 15:12Z only heartbeats are recorded.
+  - The heartbeat job (`default/j_1ca16f7e9adf6527`) is cancelled, and the 7-day grant is revoked: the token now fails with `unauthorized`.
 - [ ] 5.3 Run the boot and `cloud.sh` matrix on Firebase Test Lab: Pixel 8 and Pixel 9 on Android 16 (API 36), and Pixel 11 on Android 17 (API 37). The Pixel 10a (API 37) is already covered by the tasks above.
   - **Sal's choices (2026-11-23):** Test Lab; enable the Testing and ToolResults APIs on the `azula-release` project and nothing else; the matrix above. Pixel 6 and 7 are recorded as **unverified**: Test Lab has them only at API 33 and below, under minSdk 34. The un-hide gate (design, Migration Plan) is therefore Pixel 8, 9, 10a and 11.
   - **Found:** the gcloud default project is `azula-release`; billing is off, and both APIs were off. Test Lab has Pixel 8 and 9 at API 34 to 36, Pixel 10 at API 36, Pixel 11 at API 37.
