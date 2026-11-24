@@ -123,7 +123,8 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
       - The heads-up "enter code" is tappable over the pairing dialog, which saves step 9 for a quick user.
       - "done" arrives 12 s after the grant, because of Android's restart backoff for the killed self-grant service. It doesn't delay Ready.
       - Denying notifications at first launch adds 2 taps (from the 3.6 walkthrough). Developer options off adds 7 Build-number taps, plus the PIN and the trip to About phone.
-- [ ] 3.8 A second pass on setup before 4.1, because 3.7 was over target.
+- [x] 3.8 A second pass on setup before 4.1, because 3.7 was over target.
+  - **Sal accepted and closed this on 2026-11-24** (card answer, relayed by the parent session), from these numbers: 1 min 45 s measured, and, computed, 2 min 33 s at 3.7's pace and 1 min 53 s without its reading pauses. Not timed on this build: a run with Wireless debugging off.
   - Remove the first-boot `wait-online` stall (about 2 min). The guest's network config should satisfy or skip `systemd-networkd-wait-online` from cloud-init's init-local stage (for example through the NoCloud `network-config`), not mask it in cloud-final. Verify: first boot under 30 s on the Pixel, and no `wait-online` timeout in the console log.
   - Once that's gone, unpack (65 s) becomes the critical path for a fast user. Consider extracting while downloading, or a faster codec.
   - Re-measure as in 3.7. The target is unchanged.
