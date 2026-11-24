@@ -150,7 +150,23 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
       - The smallest retry is in the guest: `azula-provision` is a service that installs until the tools are there, and runs at every boot.
       - Readiness is believed per seed version (`toolsSeedId`, the seed's SHA-256). State from before, including a wrong `firstBootDone`, isn't believed. An app update ships a new seed, so cloud-init reruns and the guest reports again; with the tools in place that's immediate and offline.
       - Tests: 107 `vmhost-real` tests, among them rc=0, a failed attempt, no line at all, the deadline, and the old persisted state.
-    - **Still over the 2-minute target, and it can't be reached by tuning.** From "set up", image prep takes about 82 s and boot plus tools about 74 s, one after the other, so Ready can't come before about 2 min 40 s. What's left is a choice for Sal: pre-baked tools, a faster image codec, deferring `pm grant` until the image is ready (which avoids the restarted unpack), or Ready before the tools behind a job gate.
+    - **Re-measured on the Pixel 10a, 2026-11-24, runs 4 and 5** (azula-app 3255df0, whose later main commit adds only the Test Lab harness; seed of azula-cli aac8fe9, byte-identical in the APK; `app.azula.dev` with data cleared and grants revoked; recorded; Wireless debugging already on, because adb was wireless, so 3.7's toggle, OK and "allow on this network" taps were skipped):
+
+      | | Run 4 | Run 5 |
+      |---|---|---|
+      | Entry tap to Ready (tools in, `rc=0`) | **1 min 45.7 s** | **1 min 44.7 s** |
+      | Entry tap to pairing code sent | 44.3 s | 43.5 s |
+      | Code sent to Ready | 61.4 s | 61.2 s |
+      | Image: download, verify, unpack | 17.7 s, 0.4 s, 0.0 s left to wait | 18.4 s, 0.4 s, 0.0 s left to wait |
+      | First boot to login | 24.8 s | 23.8 s |
+      | First boot to tools in | 59.4 s | 59.1 s |
+
+      - 7 taps, 1 swipe and the code typed. 3.7's flow, with Wireless debugging off, adds 3 taps: 10 taps and a swipe (3.7 counted the swipe as a tap, so 11).
+      - The image was ready 23.9 s and 24.4 s after the entry tap, well before the grant, so the unpack is off the critical path.
+      - **At 3.7's pace (code sent at 1 min 32 s) Ready would be about 2 min 33 s.** That's computed, not measured: 92 s of hands-on time plus the 61 s above. About 40 s of 3.7's 92 s was the driver pausing to read the screen; without those pauses it would be about 1 min 53 s. The 2-minute target holds for a user who takes under about 58 s of hands-on time.
+      - The flow with Wireless debugging off has not been timed on this build: it needs a USB cable, because Wireless debugging is the only adb link.
+      - The Ready gate, the native unpack and the new seed ran on the phone for the first time here. Ready came only after the guest's `rc=0`, and the host stored the shipped seed's id (`toolsSeedId`).
+      - **`cloud.sh`, relay-only, on this build: ALL PASS, in 532 s.** About 485 s of it was the 9 MB push and pull, which n0's public relay was rate-limiting: the client and the host both logged `The relay is rate-limiting this endpoint`. Earlier runs of the script took 74 to 90 s, with no throttling noticed. The rest took about 45 s. The grant was revoked afterwards and got `unauthorized`.
 
 ## 4. Play
 
@@ -195,7 +211,7 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - Doctor, relay-only: dial 47 to 107 ms, auth 74 to 108 ms, guest 224 to 304 ms.
     - The Pixel 11's download took 167 s. The cause (network, mirror or phone) wasn't measured.
     - The Pixel 8 ran a `user`, release-keys build. The other two reports weren't checked for it.
-  - **The un-hide gate (Pixel 8, 9, 10a and 11) is not met yet.** Pixel 8, 9 and 11 are missing the `cloud.sh` steps above. The 10a hasn't run the Ready gate, the native unpack or the current seed (3.8's re-measure). Pixel 6 and 7 stay unverified.
+  - **The un-hide gate (Pixel 8, 9, 10a and 11) is not met yet.** Pixel 8, 9 and 11 are missing the `cloud.sh` steps above. The 10a's leg is done: the Ready gate, the native unpack, the current seed and `cloud.sh` all ran on it (3.8, runs 4 and 5). Pixel 6 and 7 stay unverified.
     - Note (from Google's pages, not re-checked): Test Lab is deprecated, with a shutdown date of 2027-09-30.
 
 ## Workflow follow-up
