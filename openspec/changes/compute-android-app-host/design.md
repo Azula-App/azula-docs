@@ -78,8 +78,11 @@ asset. It installs:
 - `azula-timesync` and its timer.
 
 The seed also sets the apt and git proxy, switches the apt sources to
-https, masks `systemd-networkd-wait-online` (with no NIC it stalls every
-boot for 2 minutes), and installs `build-essential git file`.
+https, and installs `build-essential git file`. Its `network-config` gives
+the guest a dummy link (`azula0`, 192.0.2.1/32) that cloud-init renders
+before networkd starts. Without it, `systemd-networkd-wait-online` would
+wait 2 minutes for a NIC that doesn't exist on the first boot, because
+user-data can only mask it afterwards (measured in task 3.7, fixed in 3.8).
 
 ### D3. The broker is a JNI library running in `:vmhost`, in attach mode
 
@@ -278,7 +281,9 @@ app re-detects state every time it resumes.
   1. downloading debian · 0.4 GB (resumable over HTTP ranges, checked
      against `SHA512SUMS`);
   2. preparing disk;
-  3. first boot · installing tools (about 4 min).
+  3. first boot · installing tools (about 2 min). Ready waits for the
+     seed to report its tool install, so a cloud session connected at Ready
+     finds git and build-essential, and no held dpkg lock.
 - **The user can leave.** Each stage resumes after process death.
 - **Recoverable failures retry with backoff** and show one line plus
   **retry**: no network, low storage (a recomputed space figure), or a

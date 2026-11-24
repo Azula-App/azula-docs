@@ -188,7 +188,9 @@ adb shell run-as app.azula.avfhost cat files/token.json
   seed disk. Delete and recreate on every start.
 - No NIC means `systemd-networkd-wait-online` stalls every boot for 2
   minutes. The seed masks it after the first boot. Baking the mask into
-  the image would avoid even the first stall.
+  the image would avoid even the first stall. *Superseded (task 3.8): a
+  dummy link in the seed's `network-config` satisfies the wait from the
+  first boot, and first boot to login is now about 25 s on the Pixel 10a.*
 - `connectVsock(port)` to a port with nothing listening throws
   `ServiceSpecificException: Failed to connect` (ENODEV). It doesn't return
   a dead fd, so the proxy pool retries every second until the guest shim

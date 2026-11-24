@@ -122,6 +122,19 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
   - Remove the first-boot `wait-online` stall (about 2 min). The guest's network config should satisfy or skip `systemd-networkd-wait-online` from cloud-init's init-local stage (for example through the NoCloud `network-config`), not mask it in cloud-final. Verify: first boot under 30 s on the Pixel, and no `wait-online` timeout in the console log.
   - Once that's gone, unpack (65 s) becomes the critical path for a fast user. Consider extracting while downloading, or a faster codec.
   - Re-measure as in 3.7. The target is unchanged.
+  - 2026-11-23, first pass (azula-cli `fa9dfb1`, azula-app `aedf972`):
+    - **`wait-online` stall: removed.** The seed adds a NoCloud `network-config` with a dummy link (`azula0`, 192.0.2.1/32), which cloud-init renders in init-local, so `wait-online` succeeds at once.
+      - Under QEMU (no NIC, same image and cloud-init 25.1.4), cloud-init's network stage starts at 3.1 s, against 123.2 s before.
+      - On the Pixel, first boot reaches login in 24.8 s, against about 140 s.
+    - **Ready now waits for the tools (a D9 fix).** In 3.7, Ready came at getty's login prompt, about 95 s before the seed's `apt-get install build-essential git file` finished. A cloud session connected at Ready could find no git, or a held dpkg lock.
+      - On first boot, the host now also waits for the seed's `AZULA-SEED provision rc=` console line, with a 15-min backstop.
+      - The S3 copy changed from "about 4 min" to "about 2 min".
+    - **Re-measured, run 3:** `app.azula.dev` with data cleared and grants revoked. Wireless debugging was already on, because adb was wireless (the phone had been unplugged), so steps 4–7 of 3.7 were skipped.
+      - Entry to Ready (tools installed): **3 min 05 s**.
+      - Grant at +44.5 s. Download 17.6 s, then unpack, which the grant's gid kill interrupted 21.5 s in. The unpack restarted from zero and took 64.0 s. Then boot to login 24.8 s, and tools 49.5 s (rc=0).
+      - At 3.7's hands-on pace (grant at +93 s, image ready first), Ready would be about **2 min 50 s**, against 3.7's 3 min 58 s before tools, or about 5 min 33 s with them.
+      - Doctor passed every stage relay-only. A job saw git 2.47.3 and gcc 14.2, and the guest clock matched UTC. A revoked token got `unauthorized`.
+    - **Still over the 2-minute target, and it can't be reached by tuning.** From "set up", image prep takes about 82 s and boot plus tools about 74 s, one after the other, so Ready can't come before about 2 min 40 s. What's left is a choice for Sal: pre-baked tools, a faster image codec, deferring `pm grant` until the image is ready (which avoids the restarted unpack), or Ready before the tools behind a job gate.
 
 ## 4. Play
 
