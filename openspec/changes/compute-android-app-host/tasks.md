@@ -75,6 +75,11 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - **Not revoked.** `PermissionManagerServiceImpl` keeps previously granted `development`-flag permissions (`bp.isDevelopment() && origState.isPermissionGranted`).
     - Settings' `DevelopmentSettingsDashboardFragment.disableDeveloperOptions()` only flips the global setting and calls each controller's `onDeveloperOptionsDisabled`.
     - Onboarding can say "you can turn developer options and wireless debugging off now", pending one device confirmation by someone at the phone.
+    - Extended 2026-11-23 from AOSP android16-qpr2-release and android17-release:
+      - **The Terminal survives.** `LinuxTerminalPreferenceController` has no `onDeveloperOptionsDisabled` override, so turning Developer options off only greys its row. It doesn't disable the Terminal app or delete its VM. The separate "Linux development environment" toggle (`EnableLinuxTerminalPreferenceController.onCheckedChanged`) does both, so a test must leave that one alone.
+      - **Grants survive.** `PermissionManagerServiceImpl` is gone in 16-qpr2 and 17; `AppIdPermissionPolicy.evaluatePermissionState` keeps `RUNTIME_GRANTED` for development permissions.
+      - **adb is cut.** `AdbPreferenceController` and `AdbWirelessDebuggingPreferenceController` set both globals to 0. Paired keys stay, but on 17 the 7-day timer of a kept-connected key resets.
+      - Pixel's closed SettingsGoogle overlay is unverified, and there's been no device test.
 - [x] 3.6 The setup flow, exactly as design D9 (approved by Sal 2026-11-22):
   - S0, the single entry;
   - S1, the capability check with defaults and the "advanced" panel;
@@ -139,6 +144,10 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 ## 4. Play
 
 - [ ] 4.1 Target API 36 or later, and the Play Console foreground-service declaration with the D8 justification and a demo video. Verify through an internal-testing track upload.
+  - Prep done 2026-11-23, nothing uploaded:
+    - targetSdk is 36, confirmed in `android-app/module.yaml`. The manifest's `specialUse` services have subtype strings.
+    - The declaration text for both services is in [`design-pages/play-declaration.md`](design-pages/play-declaration.md).
+    - A draft demo video exists (3.7 recording, network names masked). The final one is re-recorded on the shipping build. Uploading and the video link are Sal's.
 - [ ] 4.2 Review the pre-launch report's non-SDK warnings, and record them.
 
 ## 5. Verification
