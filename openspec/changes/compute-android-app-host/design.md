@@ -78,7 +78,11 @@ asset. It installs:
 - `azula-timesync` and its timer.
 
 The seed also sets the apt and git proxy, switches the apt sources to
-https, and installs `build-essential git file`. Its `network-config` gives
+https, and turns off apt's HTTP pipelining (Debian's CDN stops answering
+pipelined requests, which made apt wait 30 s about half the time). Its tools
+are `build-essential git file`, installed by the `azula-provision` service,
+which retries until git, gcc, make and file run and reports each attempt on
+the console. Its `network-config` gives
 the guest a dummy link (`azula0`, 192.0.2.1/32) that cloud-init renders
 before networkd starts. Without it, `systemd-networkd-wait-online` would
 wait 2 minutes for a NIC that doesn't exist on the first boot, because
@@ -328,6 +332,7 @@ failures show the cause.
 | Developer options turned off | If that revokes grants (task 3.5), same as the row above. If not, nothing. |
 | Low storage | The exact space needed and what's free now. Provisioning resumes on **retry**. |
 | Download or checksum failure | An automatic retry with backoff. After three failures, one line plus **retry**. |
+| The tools didn't install (no network) | The guest retries by itself, and S3 says "installing tools · no luck yet, trying again". After 15 min: "couldn't install the tools · check the network, then retry". Never Ready. |
 | VM killed (LMK, crash) | Automatic restart once. "restarting…" then running. If it repeats, "stopped — {cause}" plus **start**. |
 | Phone can't host | Said at S1, before any download or grant |
 
@@ -370,6 +375,11 @@ navigation. Task 3.7 measures the real numbers.
   second run. Recommend a charger.
 - **[The VM dies with the host process]** (phantom processes). Run it in
   `:vmhost`, and report `interrupted` jobs at the next start.
+- **[The seed's worker runs as root.]** The AVF guest's worker is started as
+  root with `--run-as azula`. Exec children run as `azula`, but single-file
+  push and pull open files as root. The job user has passwordless sudo in this
+  guest, so it's no new privilege, and it wasn't tightened here. The local
+  backend (`compute-local-backend`) runs its worker as the job user instead.
 - **[Wireless debugging needs Wi-Fi]** for the one-time pairing. Document
   it, with computer adb as the alternative.
 
@@ -379,7 +389,8 @@ navigation. Task 3.7 measures the real numbers.
    `vm/avf-seed`, and the musl broker build in release.
 2. Build the host into azula-app's base APK, with the JNI broker (D3, D6).
 3. Ship it behind a settings entry that's hidden until the feature works
-   on Pixel 6, 8 and 10a.
+   on Pixel 8, 9, 10a and 11. (Pixel 6 and 7 are unverified: Test Lab has
+   them only below minSdk 34.)
 4. Then submit to Play.
 
 Rollback: hide the entry. The base APK carries only manifest declarations.

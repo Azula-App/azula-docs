@@ -145,6 +145,11 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
       - **The tool install** also skips recommends, per-file fsync and the man-db index. Those save about 6 s of dpkg; its 23 s floor is xz decompression.
       - **A download of an image Debian replaces mid-way no longer gets stuck** (azula-app 40d595f): it starts over instead of failing every retry.
       - Verified without the phone: 90 vmhost-real tests and the full `./check`; 18 Rust decoder tests; the tuned seed boots in QEMU with a NIC and provisions `rc=0` with the tools in 17 s.
+    - **The Ready gate accepted a failed tool install** (found by an external audit, confirmed in azula-app aedf972): any `provision rc=<n>` and the 15-minute deadline made it Ready, and that was persisted. Fixed on 2026-11-24 (azula-app 3255df0, azula-cli aac8fe9), not yet on a phone:
+      - Only the guest's own `rc=0` (git, gcc, make and file run) counts. A failed attempt is shown as "installing tools · no luck yet, trying again". The deadline is an error that a retry fixes, and nothing is ever persisted as done.
+      - The smallest retry is in the guest: `azula-provision` is a service that installs until the tools are there, and runs at every boot.
+      - Readiness is believed per seed version (`toolsSeedId`, the seed's SHA-256). State from before, including a wrong `firstBootDone`, isn't believed. An app update ships a new seed, so cloud-init reruns and the guest reports again; with the tools in place that's immediate and offline.
+      - Tests: 107 `vmhost-real` tests, among them rc=0, a failed attempt, no line at all, the deadline, and the old persisted state.
     - **Still over the 2-minute target, and it can't be reached by tuning.** From "set up", image prep takes about 82 s and boot plus tools about 74 s, one after the other, so Ready can't come before about 2 min 40 s. What's left is a choice for Sal: pre-baked tools, a faster image codec, deferring `pm grant` until the image is ready (which avoids the restarted unpack), or Ready before the tools behind a job gate.
 
 ## 4. Play
@@ -162,11 +167,10 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
 - [ ] 5.1 Run `vm/e2e/cloud.sh` from a Claude Code cloud sandbox (`azula-cli` environment) against the feature build on the Pixel 10a, with the Terminal app not running. Record the timings here.
 - [ ] 5.2 Soak overnight, unplugged with the screen off: a job heartbeats every minute. Record gaps, battery drain and thermal status.
   - Prepared 2026-11-23: `vm/e2e/phone-soak.py` (azula-cli 37a9d4d). It starts the heartbeat job, samples battery, temperature, thermal status, Doze state and the VM process over wireless adb, probes `compute doctor` over the relay, and reports gaps (a paused VM apart from a slow one). Dry-run on the Pixel 10a: 12 of 12 heartbeats, 4 of 4 samples, 4 of 4 probes.
-- [ ] 5.3 Run the boot and `cloud.sh` matrix on a Pixel 6 or 7 and a Pixel 8 or 9, Android 16 and 17.
-  - Blocked on Sal, 2026-11-23: Firebase Test Lab (Sal's choice).
-    - The gcloud default project is `azula-release`. The Testing and ToolResults APIs aren't enabled on it, and billing is off.
-    - Test Lab has no Pixel 6 or 7 above API 33, below minSdk 34. It has Pixel 8 and 9 at API 34 to 36, Pixel 10 at API 36, and Pixel 11 at API 37 (Android 17). The task's Pixel 6 or 7 can't run there.
-    - Nothing enabled, created or billed.
+- [ ] 5.3 Run the boot and `cloud.sh` matrix on Firebase Test Lab: Pixel 8 and Pixel 9 on Android 16 (API 36), and Pixel 11 on Android 17 (API 37). The Pixel 10a (API 37) is already covered by the tasks above.
+  - **Sal's choices (2026-11-23):** Test Lab; enable the Testing and ToolResults APIs on the `azula-release` project and nothing else; the matrix above. Pixel 6 and 7 are recorded as **unverified**: Test Lab has them only at API 33 and below, under minSdk 34. The un-hide gate (design, Migration Plan) is therefore Pixel 8, 9, 10a and 11.
+  - **Found:** the gcloud default project is `azula-release`; billing is off, and both APIs were off. Test Lab has Pixel 8 and 9 at API 34 to 36, Pixel 10 at API 36, Pixel 11 at API 37.
+  - The runner (in progress): a stub app is the instrumented package; `app.azula.vmhost.test` is the separate package that gets the grants, because `pm grant` kills the granted app's processes. Stays within Test Lab's free daily quota; nothing billable.
 
 ## Workflow follow-up
 
