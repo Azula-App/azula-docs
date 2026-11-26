@@ -207,7 +207,7 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - **The first hour doesn't count as idle.** From 04:07Z to about 05:00Z the agent ran apt benchmarks in the same VM and toggled the screen: battery 88% to 85%. The heartbeats ran through it without a gap.
     - Sampling stopped at 14:07Z. From 14:07Z to 15:12Z only heartbeats are recorded.
   - The heartbeat job (`default/j_1ca16f7e9adf6527`) is cancelled, and the 7-day grant is revoked: the token now fails with `unauthorized`.
-- [ ] 5.3 Run the boot and `cloud.sh` matrix on Firebase Test Lab: Pixel 8 and Pixel 9 on Android 16 (API 36), and Pixel 11 on Android 17 (API 37). The Pixel 10a (API 37) is already covered by the tasks above.
+- [x] 5.3 Run the boot and `cloud.sh` matrix on Firebase Test Lab: Pixel 8 and Pixel 9 on Android 16 (API 36), and Pixel 11 on Android 17 (API 37). The Pixel 10a (API 37) is already covered by the tasks above.
   - **Sal's choices (2026-11-23):** Test Lab; enable the Testing and ToolResults APIs on the `azula-release` project and nothing else; the matrix above. Pixel 6 and 7 are recorded as **unverified**: Test Lab has them only at API 33 and below, under minSdk 34. The un-hide gate (design, Migration Plan) is therefore Pixel 8, 9, 10a and 11.
   - **Found:** the gcloud default project is `azula-release`; billing is off, and both APIs were off. Test Lab has Pixel 8 and 9 at API 34 to 36, Pixel 10 at API 36, Pixel 11 at API 37.
   - **Runner** (2026-11-24, azula-app dd12cbf, `vmhost-ftl/`): a stub app is the instrumented package; `app.azula.vmhost.test` is the separate package that gets the grants, because `pm grant` kills the granted app's processes. Its README has the Test Lab commands.
@@ -220,7 +220,16 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - The rest are quick: `start` (doctor, `vm start`, `doctor --vm`) 3 to 4 s, `tree` 8 to 9 s with a 1.3 s build in the guest, `detach` 5 to 6 s, `survivor` 7 s, `timeout` 124 in 3.9 and 4.4 s.
     - Both tokens of each run were revoked: the app confirmed it, the file was gone, and the host then refused the token. No `azc1.` string is in either report.
     - Start to RUNNING was 123 s and 124 s, and the runs 669 s and 671 s.
-  - **Not run yet: stage 5 on the Pixel 11 (API 37).** That keeps this task open.
+  - **The whole matrix on the 0.4.3 build, 2026-11-26: all five stages and all nine `cloud.sh` steps PASS on Pixel 8, Pixel 9 and Pixel 11.** Harness of azula-app fd8b788; `libazula_host.so` and the seed built from azula-cli bf7b7be (the code of 0.4.3); the shell's static `azula` reports 0.4.3. Runs 1 to 3 of the day's free quota; nothing billable.
+
+    | Device | Android | Start to RUNNING | `transfer`: 9 MB push / pull | `reattach` | Run |
+    |---|---|---|---|---|---|
+    | Pixel 8 | 16 (API 36) | 140 s | 79 s / 84 s | 21 s | 386 s |
+    | Pixel 9 | 16 (API 36) | 166 s | 81 s / 85 s | 22 s | 408 s |
+    | Pixel 11 | 17 (API 37) | 101 s | 81 s / 84 s | 21 s | 333 s |
+
+    - Only `reattach` and `transfer` were throttled by the relay; every other step passed outright, in 7 s or less. The transfers took about 40% of the time they did on the earlier build.
+    - All tokens were revoked, deleted and then refused by the host; no `azc1.` string is in any report. All three phones run `user`, release-keys builds.
   - **Relay-only pulls failed on the Pixel 10a on 2026-11-24**: 1 MiB pulls got 0 bytes in 150 to 200 s, five times out of five, while pushes and pulls of 256 KiB or less worked. The cause was the broker giving up 10 s after a finished response (fixed in azula-cli bf7b7be). It depends on the path: on Test Lab, the same build pulled 9 MB in each run. **Re-checked on the 10a, 2026-11-26** (library and seed from azula-cli bf7b7be, Mac client from bf7b7be, relay-only): 1 MiB pulls in 9.5 to 9.8 s (3 of 3) and 9 MB pulls in 73.0 s and 72.9 s (2 of 2), all identical, with no lost connection. Pushes took 10.0 s and 74.4 s. The new seed took over at the next start: the guest reported its tools 12.7 s in, Ready at 20.2 s.
 
     | Device | SoC | Android | Image download (Test Lab network) | First boot to RUNNING, tools in | Start to RUNNING |
@@ -233,7 +242,7 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - Doctor, relay-only: dial 47 to 107 ms, auth 74 to 108 ms, guest 224 to 304 ms.
     - The Pixel 11's download took 167 s. The cause (network, mirror or phone) wasn't measured.
     - The Pixel 8 ran a `user`, release-keys build. The other two reports weren't checked for it.
-  - **The un-hide gate (Pixel 8, 9, 10a and 11) is not met yet.** Pixel 8 and 9 have passed all of `cloud.sh`; the Pixel 11 hasn't run it. The 10a's leg is done: the Ready gate, the native unpack, the current seed and `cloud.sh` all ran on it (3.8, runs 4 and 5). Pixel 6 and 7 stay unverified.
+  - **The un-hide gate (Pixel 8, 9, 10a and 11):** Pixel 8, 9 and 11 pass all of it on the 0.4.3 build. The 10a passed `cloud.sh` on the earlier build and the relay-pull probe on 0.4.3's code; 5.1 runs `cloud.sh` on it again, on 0.4.3, from a cloud sandbox. The 10a's earlier leg: the Ready gate, the native unpack, the current seed and `cloud.sh` all ran on it (3.8, runs 4 and 5). Pixel 6 and 7 stay unverified.
     - Note (from Google's pages, not re-checked): Test Lab is deprecated, with a shutdown date of 2027-09-30.
 
 ## Workflow follow-up
