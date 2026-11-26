@@ -221,7 +221,7 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - Both tokens of each run were revoked: the app confirmed it, the file was gone, and the host then refused the token. No `azc1.` string is in either report.
     - Start to RUNNING was 123 s and 124 s, and the runs 669 s and 671 s.
   - **Not run yet: stage 5 on the Pixel 11 (API 37).** That keeps this task open.
-  - **Relay-only pulls failed on the Pixel 10a on 2026-11-24**: 1 MiB pulls got 0 bytes in 150 to 200 s, five times out of five, while pushes and pulls of 256 KiB or less worked. The cause was the broker giving up 10 s after a finished response (fixed in azula-cli bf7b7be). It depends on the path: on Test Lab, the same build pulled 9 MB in each run. To re-check on the 10a with the rebuilt library and seed.
+  - **Relay-only pulls failed on the Pixel 10a on 2026-11-24**: 1 MiB pulls got 0 bytes in 150 to 200 s, five times out of five, while pushes and pulls of 256 KiB or less worked. The cause was the broker giving up 10 s after a finished response (fixed in azula-cli bf7b7be). It depends on the path: on Test Lab, the same build pulled 9 MB in each run. **Re-checked on the 10a, 2026-11-26** (library and seed from azula-cli bf7b7be, Mac client from bf7b7be, relay-only): 1 MiB pulls in 9.5 to 9.8 s (3 of 3) and 9 MB pulls in 73.0 s and 72.9 s (2 of 2), all identical, with no lost connection. Pushes took 10.0 s and 74.4 s. The new seed took over at the next start: the guest reported its tools 12.7 s in, Ready at 20.2 s.
 
     | Device | SoC | Android | Image download (Test Lab network) | First boot to RUNNING, tools in | Start to RUNNING |
     |---|---|---|---|---|---|
