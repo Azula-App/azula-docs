@@ -70,7 +70,13 @@ must finish before groups 2–4. Group 5 needs groups 1–4.
     - **`pm grant` kills the app process** (gid change). The restarted service detects both grants and finishes.
 - [x] 3.4 The grant UI: mint, copy and QR-code a compute grant, list grants, and revoke them, through the JNI broker's `mintGrant`/`listGrants`/`revoke`. Verify a minted token works from the Mac relay-only.
   - 2026-11-23, azula-app main a62e4cc (S4/S5 of the setup flow). On the Pixel 10a as `app.azula.dev`: a token minted in S5 passed every `compute doctor` stage relay-only and ran `compute exec -- uname -a`. After revoke in S4, the same token failed at auth with "unauthorized".
-- [ ] 3.5 Find out whether turning Developer options off revokes the grants (design open question). Record the result here and in the onboarding copy.
+- [x] 3.5 Find out whether turning Developer options off revokes the grants (design open question). Record the result here and in the onboarding copy.
+  - **Answer, on the device (Pixel 10a, Android 17 CP3A.261005.005, 2026-11-25): no.** Turning Developer options off leaves both VM permissions granted and the host working, and the Terminal untouched.
+    - Before (19:59 PST): `app.azula.dev` held `MANAGE_VIRTUAL_MACHINE` and `USE_CUSTOM_VIRTUAL_MACHINE` (`granted=true`) and was hosting. Developer options, USB and Wireless debugging were on, and the Terminal app was enabled.
+    - Sal turned Developer options off and left "Linux development environment" alone. azula still showed "hosting · running". With Developer options still off, Sal turned hosting off and on: "running again" within about a minute. The host log has the stop at 20:02:07 and RUNNING at 20:02:30, 17.2 s after the start. The system's records agree: the Developer options screen closed at 20:01:32, as it does when the switch goes off, and Settings was opened again at 20:03:05.
+    - Turning it off cut adb, USB and wireless, as the source said. After Developer options, USB and Wireless debugging were back on, the Mac reconnected without pairing again.
+    - After (20:04 PST): both permissions still `granted=true` on the same install (`firstInstallTime` and `lastUpdateTime` unchanged), hosting running, and the Terminal app still enabled.
+  - **Onboarding copy** (azula-app, the grant line and the "done" notification): "you can turn wireless debugging and developer options off now", where it said only wireless debugging.
   - 2026-11-23, from source (not device-tested, because turning Developer options off on the test phone would cut USB adb):
     - **Not revoked.** `PermissionManagerServiceImpl` keeps previously granted `development`-flag permissions (`bp.isDevelopment() && origState.isPermissionGranted`).
     - Settings' `DevelopmentSettingsDashboardFragment.disableDeveloperOptions()` only flips the global setting and calls each controller's `onDeveloperOptionsDisabled`.

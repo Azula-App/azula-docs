@@ -281,8 +281,9 @@ app re-detects state every time it resumes.
 
    The step persists its progress (pairing key, current line), so an
    app switch, process death or reboot resumes on the right line. After
-   success it adds one line: "you can turn wireless debugging off now".
-   Whether Developer options can go off too depends on task 3.5.
+   success it adds one line: "you can turn wireless debugging and developer
+   options off now". Turning Developer options off keeps the grants (task 3.5,
+   checked on a Pixel 10a).
 
 **S3 · Provisioning (hands-off).**
 - **What runs:** a progress foreground notification plus an in-app
@@ -398,7 +399,9 @@ Rollback: hide the entry. The base APK carries only manifest declarations.
 
 ## Open Questions
 
-- Does turning Developer options off revoke `development`-flag grants?
-  (See D7.)
+- ~~Does turning Developer options off revoke `development`-flag grants?~~
+  No: the grants survive and the host keeps working (task 3.5, Pixel 10a,
+  Android 17, 2026-11-25). It cuts adb, and leaves the Terminal alone as long
+  as "Linux development environment" isn't touched.
 - Should the host restart automatically after a reboot, given the Android
   15+ boot-FGS restrictions?
